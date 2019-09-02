@@ -45,10 +45,51 @@ impl VMOp {
 }
 
 #[derive(Debug,PartialEq)]
+enum VMSeg {
+    LOCAL,
+    ARGUMENT,
+    THIS,
+    THAT,
+    CONSTANT,
+    STATIC,
+    TEMP,
+    POINTER,
+}
+
+impl VMSeg {
+    fn from_str(s: &str) -> Option<VMSeg> {
+        match s {
+            "local" => Some(VMSeg::LOCAL),
+            "argument" => Some(VMSeg::ARGUMENT),
+            "this" => Some(VMSeg::THIS),
+            "that" => Some(VMSeg::THAT),
+            "constant" => Some(VMSeg::CONSTANT),
+            "static" => Some(VMSeg::STATIC),
+            "temp" => Some(VMSeg::TEMP),
+            "pointer" => Some(VMSeg::POINTER),
+            _ => None
+        }        
+    }
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            VMSeg::LOCAL => "local",
+            VMSeg::ARGUMENT => "argument",
+            VMSeg::THIS => "this",
+            VMSeg::THAT => "that",
+            VMSeg::CONSTANT => "constant",
+            VMSeg::STATIC => "static",
+            VMSeg::TEMP => "temp",
+            VMSeg::POINTER => "pointer",
+        }
+    }
+}
+
+#[derive(Debug,PartialEq)]
 enum VMCommand {
     Arithmetic(VMOp),
-    Push(String, i32),
-    //Pop(String, i32),
+    Push(VMSeg, i32),
+    //Pop(VMSeg, i32),
 }
 
 fn parse_str(cmd_str: &str) -> Option<VMCommand> {
@@ -60,8 +101,16 @@ fn parse_str(cmd_str: &str) -> Option<VMCommand> {
     if let Some(vmc) = VMOp::from_str(ws[0]) {
         Some(VMCommand::Arithmetic(vmc))
     } else if ws[0] == "push" {
-        if ws.len() == 3 && ws[1] == "constant" && ws[2].parse::<i32>().is_ok() {
-            Some(VMCommand::Push("constant".to_string(), ws[2].parse::<i32>().unwrap()))
+        if ws.len() == 3 {
+            if let Some(seg) = VMSeg::from_str(ws[1]) {
+                if let Ok(n) = ws[2].parse::<i32>() {
+                    Some(VMCommand::Push(seg, n))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -77,7 +126,7 @@ fn simple_parse_str_test() {
     assert_eq!(parse_str("add"), Some(VMCommand::Arithmetic(VMOp::ADD)));
     assert_eq!(parse_str("pop foo bar"), None);
     assert_eq!(parse_str("push splat bar"), None);
-    assert_eq!(parse_str("push constant 33"), Some(VMCommand::Push("constant".to_string(), 33)));
+    assert_eq!(parse_str("push constant 33"), Some(VMCommand::Push(VMSeg::CONSTANT, 33)));
 }
 
 fn trans_cmd(c: VMCommand) -> String {
@@ -103,3 +152,4 @@ fn trans_add_test() {
     assert_eq!(trans_cmd(VMCommand::Arithmetic(VMOp::ADD)), 
         "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n")
 }
+
