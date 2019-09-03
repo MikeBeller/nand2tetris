@@ -1,6 +1,11 @@
 // vmtranslator.rs
+use std::fmt::Write;
+use std::fs::File;
+use std::io::Write as OtherWrite;
+use std::io::BufReader;
+use std::io::BufRead;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Copy,Clone)]
 enum VMOp {
     ADD,
     SUB,
@@ -44,7 +49,7 @@ impl VMOp {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Copy,Clone)]
 enum VMSeg {
     LOCAL,
     ARGUMENT,
@@ -85,7 +90,7 @@ impl VMSeg {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Copy,Clone)]
 enum VMCommand {
     Arithmetic(VMOp),
     Push(VMSeg, i32),
@@ -133,14 +138,16 @@ fn trans_cmd(c: VMCommand) -> String {
     let mut r = String::new();
     match c {
         VMCommand::Arithmetic(op) => {
-            r.push_str("// ");
-            r.push_str(op.as_str());
-            r.push_str("\n");
+            writeln!(&mut r, "// {}", op.as_str()).unwrap();
             match op {
                 VMOp::ADD =>
                     r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n"),
                 _ => {}
             }
+        },
+        VMCommand::Push(seg, num) if seg == VMSeg::CONSTANT => {
+            writeln!(&mut r, "// push {} {}", seg.as_str(), num).unwrap();
+            writeln!(&mut r, "@{}\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1", num).unwrap();
         },
         _ => {}
     }
@@ -150,6 +157,31 @@ fn trans_cmd(c: VMCommand) -> String {
 #[test]
 fn trans_add_test() {
     assert_eq!(trans_cmd(VMCommand::Arithmetic(VMOp::ADD)), 
-        "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n")
+        "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n");
 }
 
+#[test]
+fn trans_pushconst_test() {
+    assert_eq!(trans_cmd(VMCommand::Push(VMSeg::CONSTANT, 33)), 
+        "// push constant 33\n@33\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n");
+}
+
+
+fn main() -> Result<(), std::io::Error> {
+    let root = std::env::args().nth(1).expect("usage: $0 <fname.vm>");
+    let infile_path = format!("{}.vm", root);
+    let outfile_path = format!("{}.asm", root);
+    let infile = File::open(infile_path)?;
+    let rdr = BufReader::new(&infile);
+    let mut outfile = File::create(outfile_path)?;
+
+    let cmds = rdr.lines()
+        .filter_map(|x| parse_str(&x.unwrap()));
+
+    for cmd in cmds {
+        let asm = trans_cmd(cmd);
+        write!(&mut outfile, "{}", asm).unwrap();
+    }
+    
+    Ok(())
+}
