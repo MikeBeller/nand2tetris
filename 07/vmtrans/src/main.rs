@@ -152,7 +152,7 @@ impl Translator {
                     VMOp::ADD =>
                         r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n"),
                     VMOp::SUB =>
-                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D-M\n"),
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M-D\n"),
                     VMOp::AND =>
                         r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M&D\n"),
                     VMOp::OR =>
@@ -162,7 +162,7 @@ impl Translator {
                     VMOp::NOT =>
                         r.push_str("@SP\nA=M-1\nM=!M\n"),
                     VMOp::EQ | VMOp::LT | VMOp::GT => {
-                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n");
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n");
                         write!(&mut r, "@TST.{}\n", self.label_num).unwrap();
                         if op == VMOp::EQ {
                             r.push_str("D;JEQ\n");
@@ -171,7 +171,7 @@ impl Translator {
                         } else {
                             r.push_str("D;JGT\n");
                         }
-                        write!(&mut r, "@SP\nM=0\n(TST.{})\n@SP\nA=M\nM=M+1\n", self.label_num).unwrap();
+                        write!(&mut r, "@SP\nA=M\nM=0\n(TST.{})\n@SP\nM=M+1\n", self.label_num).unwrap();
                         self.label_num += 1;
                     }
                 }
@@ -192,7 +192,7 @@ fn trans_bin_test() {
     assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::ADD)), 
         "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n");
     assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::SUB)), 
-        "// sub\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D-M\n");
+        "// sub\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M-D\n");
     assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::AND)), 
         "// and\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M&D\n");
     assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::OR)), 
@@ -210,19 +210,19 @@ fn trans_unary_test() {
 fn trans_cmp_test() {
     let mut tr = Translator::new();
     assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::EQ)), 
-               "// eq\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n".to_owned() +
-               "@TST.0\nD;JEQ\n@SP\nM=0\n" +
-               "(TST.0)\n@SP\nA=M\nM=M+1\n"
+               "// eq\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n".to_owned() +
+               "@TST.0\nD;JEQ\n@SP\nA=M\nM=0\n" +
+               "(TST.0)\n@SP\nM=M+1\n"
                );
     assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::LT)), 
-               "// lt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n".to_owned() +
-               "@TST.1\nD;JLT\n@SP\nM=0\n" +
-               "(TST.1)\n@SP\nA=M\nM=M+1\n"
+               "// lt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n".to_owned() +
+               "@TST.1\nD;JLT\n@SP\nA=M\nM=0\n" +
+               "(TST.1)\n@SP\nM=M+1\n"
                );
     assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::GT)), 
-               "// gt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n".to_owned() +
-               "@TST.2\nD;JGT\n@SP\nM=0\n" +
-               "(TST.2)\n@SP\nA=M\nM=M+1\n"
+               "// gt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n".to_owned() +
+               "@TST.2\nD;JGT\n@SP\nA=M\nM=0\n" +
+               "(TST.2)\n@SP\nM=M+1\n"
                );
 }
 
