@@ -134,35 +134,102 @@ fn simple_parse_str_test() {
     assert_eq!(parse_str("push constant 33"), Some(VMCommand::Push(VMSeg::CONSTANT, 33)));
 }
 
-fn trans_cmd(c: VMCommand) -> String {
-    let mut r = String::new();
-    match c {
-        VMCommand::Arithmetic(op) => {
-            writeln!(&mut r, "// {}", op.as_str()).unwrap();
-            match op {
-                VMOp::ADD =>
-                    r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n"),
-                _ => {}
-            }
-        },
-        VMCommand::Push(seg, num) if seg == VMSeg::CONSTANT => {
-            writeln!(&mut r, "// push {} {}", seg.as_str(), num).unwrap();
-            writeln!(&mut r, "@{}\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1", num).unwrap();
-        },
-        _ => {}
+struct Translator {
+    label_num: i32
+}
+
+impl Translator {
+    fn new() -> Translator {
+        Translator{label_num: 0}
     }
-    r
+
+    fn trans_cmd(&mut self, c: VMCommand) -> String {
+        let mut r = String::new();
+        match c {
+            VMCommand::Arithmetic(op) => {
+                writeln!(&mut r, "// {}", op.as_str()).unwrap();
+                match op {
+                    VMOp::ADD =>
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n"),
+                    VMOp::SUB =>
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D-M\n"),
+                    VMOp::AND =>
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M&D\n"),
+                    VMOp::OR =>
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M|D\n"),
+                    VMOp::NEG =>
+                        r.push_str("@SP\nA=M-1\nM=-M\n"),
+                    VMOp::NOT =>
+                        r.push_str("@SP\nA=M-1\nM=!M\n"),
+                    VMOp::EQ | VMOp::LT | VMOp::GT => {
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n");
+                        write!(&mut r, "@TST.{}\n", self.label_num).unwrap();
+                        if op == VMOp::EQ {
+                            r.push_str("D;JEQ\n");
+                        } else if op == VMOp::LT {
+                            r.push_str("D;JLT\n");
+                        } else {
+                            r.push_str("D;JGT\n");
+                        }
+                        write!(&mut r, "@SP\nM=0\n(TST.{})\n@SP\nA=M\nM=M+1\n", self.label_num).unwrap();
+                        self.label_num += 1;
+                    }
+                }
+            },
+            VMCommand::Push(seg, num) if seg == VMSeg::CONSTANT => {
+                writeln!(&mut r, "// push {} {}", seg.as_str(), num).unwrap();
+                writeln!(&mut r, "@{}\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1", num).unwrap();
+            },
+            _ => {}
+        }
+        r
+    }
 }
 
 #[test]
-fn trans_add_test() {
-    assert_eq!(trans_cmd(VMCommand::Arithmetic(VMOp::ADD)), 
+fn trans_bin_test() {
+    let mut tr = Translator::new();
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::ADD)), 
         "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n");
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::SUB)), 
+        "// sub\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D-M\n");
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::AND)), 
+        "// and\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M&D\n");
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::OR)), 
+        "// or\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M|D\n");
+}
+
+#[test]
+fn trans_unary_test() {
+    let mut tr = Translator::new();
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::NEG)), "// neg\n@SP\nA=M-1\nM=-M\n");
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::NOT)), "// not\n@SP\nA=M-1\nM=!M\n");
+}
+
+#[test]
+fn trans_cmp_test() {
+    let mut tr = Translator::new();
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::EQ)), 
+               "// eq\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n".to_owned() +
+               "@TST.0\nD;JEQ\n@SP\nM=0\n" +
+               "(TST.0)\n@SP\nA=M\nM=M+1\n"
+               );
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::LT)), 
+               "// lt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n".to_owned() +
+               "@TST.1\nD;JLT\n@SP\nM=0\n" +
+               "(TST.1)\n@SP\nA=M\nM=M+1\n"
+               );
+    assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::GT)), 
+               "// gt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=D-M\nM=-1\n".to_owned() +
+               "@TST.2\nD;JGT\n@SP\nM=0\n" +
+               "(TST.2)\n@SP\nA=M\nM=M+1\n"
+               );
 }
 
 #[test]
 fn trans_pushconst_test() {
-    assert_eq!(trans_cmd(VMCommand::Push(VMSeg::CONSTANT, 33)), 
+    let mut tr = Translator::new();
+    assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::CONSTANT, 33)), 
         "// push constant 33\n@33\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n");
 }
 
@@ -178,10 +245,12 @@ fn main() -> Result<(), std::io::Error> {
     let cmds = rdr.lines()
         .filter_map(|x| parse_str(&x.unwrap()));
 
+    let mut tr = Translator::new();
     for cmd in cmds {
-        let asm = trans_cmd(cmd);
+        let asm = tr.trans_cmd(cmd);
         write!(&mut outfile, "{}", asm).unwrap();
     }
     
     Ok(())
 }
+
