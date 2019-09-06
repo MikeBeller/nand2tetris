@@ -88,6 +88,17 @@ impl VMSeg {
             VMSeg::POINTER => "pointer",
         }
     }
+
+    fn base_var_str(&self) -> &'static str {
+        match self {
+            VMSeg::LOCAL => "LCL",
+            VMSeg::ARGUMENT => "ARG",
+            VMSeg::THIS => "THIS",
+            VMSeg::THAT => "THAT",
+            VMSeg::TEMP => "5",
+            _ => panic!("no base var for segment?")
+        }
+    }
 }
 
 #[derive(Debug,PartialEq,Copy,Clone)]
@@ -158,9 +169,9 @@ impl Translator {
         Translator{label_num: 0}
     }
 
-    fn trans_cmd(&mut self, c: VMCommand) -> String {
+    fn trans_cmd(&mut self, cmd: VMCommand) -> String {
         let mut r = String::new();
-        match c {
+        match cmd {
             VMCommand::Arithmetic(op) => {
                 writeln!(&mut r, "// {}", op.as_str()).unwrap();
                 match op {
@@ -198,9 +209,15 @@ impl Translator {
                         writeln!(&mut r, "@{}\nD=A", num).unwrap();
                     },
                     VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT => {
-                        writeln!(&mut r, "@{}\nD=A\n@{}\nA=M+D\nD=M", num, seg.as_str()).unwrap();
+                        writeln!(&mut r, "@{}\nD=A\n@{}\nA=M+D\nD=M", num, seg.base_var_str()).unwrap();
                     }
-                    _ => {},
+                    VMSeg::TEMP => {
+                        if num < 0 || num > 7 {
+                            panic!("Invalid offset for temp segment: {}", num);
+                        }
+                        writeln!(&mut r, "@{}\nD=A\n@5\nA=A+D\nD=M", num).unwrap();
+                    }
+                    _ => {panic!("unimplemented: {:?}", cmd)},
                 }
                 r.push_str("@SP\nA=M\nM=D\n@SP\nM=M+1\n");
             },
@@ -210,11 +227,18 @@ impl Translator {
                     VMSeg::CONSTANT => {
                         panic!("WTF?  Can't pop constant");
                     },
-                    VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT => {
+                    VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT | VMSeg::TEMP => {
                         // R15 = <segment> + <num>
-                        writeln!(&mut r, "@{}\nD=M\n@{}\nD=D+A\n@R15\nM=D", seg.as_str(), num).unwrap();
+                        if seg == VMSeg::TEMP {
+                            if num < 0 || num > 7 {
+                                panic!("Invalid offset for temp segment: {}", num);
+                            }
+                            writeln!(&mut r, "@{}\nD=A\n@{}\nD=D+A\n@R15\nM=D", seg.base_var_str(), num).unwrap();
+                        } else {
+                            writeln!(&mut r, "@{}\nD=M\n@{}\nD=D+A\n@R15\nM=D", seg.base_var_str(), num).unwrap();
+                        }
                         // D = *SP++
-                        r.push_str("@SP\nA=M\nD=M\n@SP\nM=M+1\n");
+                        r.push_str("@SP\nAM=M-1\nD=M\n");
                         // *R15 = D
                         r.push_str("@R15\nA=M\nM=D\n");
                     }
@@ -273,7 +297,10 @@ fn trans_push_test() {
     assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::CONSTANT, 33)), 
         "// push constant 33\n@33\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n");
     assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::LOCAL, 3)), 
-        "// push local 3\n@3\nD=A\n@local\nA=M+D\nD=M\n".to_owned() +
+        "// push local 3\n@3\nD=A\n@LCL\nA=M+D\nD=M\n".to_owned() +
+                "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
+    assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::TEMP, 3)), 
+        "// push temp 3\n@3\nD=A\n@5\nA=A+D\nD=M\n".to_owned() +
                 "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
 }
 
@@ -281,8 +308,12 @@ fn trans_push_test() {
 fn trans_pop_test() {
     let mut tr = Translator::new();
     assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::LOCAL, 3)),
-        "// pop local 3\n@local\nD=M\n@3\nD=D+A\n@R15\nM=D\n".to_owned() + 
-        "@SP\nA=M\nD=M\n@SP\nM=M+1\n" + 
+        "// pop local 3\n@LCL\nD=M\n@3\nD=D+A\n@R15\nM=D\n".to_owned() + 
+        "@SP\nAM=M-1\nD=M\n" + 
+        "@R15\nA=M\nM=D\n");
+    assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::TEMP, 7)),
+        "// pop temp 7\n@5\nD=A\n@7\nD=D+A\n@R15\nM=D\n".to_owned() + 
+        "@SP\nAM=M-1\nD=M\n" + 
         "@R15\nA=M\nM=D\n");
 }
 
