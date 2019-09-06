@@ -94,7 +94,7 @@ impl VMSeg {
 enum VMCommand {
     Arithmetic(VMOp),
     Push(VMSeg, i32),
-    //Pop(VMSeg, i32),
+    Pop(VMSeg, i32),
 }
 
 fn parse_str(cmd_str: &str) -> Option<VMCommand> {
@@ -119,6 +119,20 @@ fn parse_str(cmd_str: &str) -> Option<VMCommand> {
         } else {
             None
         }
+    } else if ws[0] == "pop" {
+        if ws.len() == 3 {
+            if let Some(seg) = VMSeg::from_str(ws[1]) {
+                if let Ok(n) = ws[2].parse::<i32>() {
+                    Some(VMCommand::Pop(seg, n))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -132,6 +146,7 @@ fn simple_parse_str_test() {
     assert_eq!(parse_str("pop foo bar"), None);
     assert_eq!(parse_str("push splat bar"), None);
     assert_eq!(parse_str("push constant 33"), Some(VMCommand::Push(VMSeg::CONSTANT, 33)));
+    assert_eq!(parse_str("pop local 3"), Some(VMCommand::Pop(VMSeg::LOCAL, 3)));
 }
 
 struct Translator {
@@ -176,11 +191,37 @@ impl Translator {
                     }
                 }
             },
-            VMCommand::Push(seg, num) if seg == VMSeg::CONSTANT => {
+            VMCommand::Push(seg, num) => {
                 writeln!(&mut r, "// push {} {}", seg.as_str(), num).unwrap();
-                writeln!(&mut r, "@{}\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1", num).unwrap();
+                match seg {
+                    VMSeg::CONSTANT => {
+                        writeln!(&mut r, "@{}\nD=A", num).unwrap();
+                    },
+                    VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT => {
+                        writeln!(&mut r, "@{}\nD=A\n@{}\nA=M+D\nD=M", num, seg.as_str()).unwrap();
+                    }
+                    _ => {},
+                }
+                r.push_str("@SP\nA=M\nM=D\n@SP\nM=M+1\n");
             },
-            _ => {}
+            VMCommand::Pop(seg, num) => {
+                writeln!(&mut r, "// pop {} {}", seg.as_str(), num).unwrap();
+                match seg {
+                    VMSeg::CONSTANT => {
+                        panic!("WTF?  Can't pop constant");
+                    },
+                    VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT => {
+                        // R15 = <segment> + <num>
+                        writeln!(&mut r, "@{}\nD=M\n@{}\nD=D+A\n@R15\nM=D", seg.as_str(), num).unwrap();
+                        // D = *SP++
+                        r.push_str("@SP\nA=M\nD=M\n@SP\nM=M+1\n");
+                        // *R15 = D
+                        r.push_str("@R15\nA=M\nM=D\n");
+                    }
+                    _ => {},
+                }
+            },
+            //_ => {}
         }
         r
     }
@@ -227,12 +268,23 @@ fn trans_cmp_test() {
 }
 
 #[test]
-fn trans_pushconst_test() {
+fn trans_push_test() {
     let mut tr = Translator::new();
     assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::CONSTANT, 33)), 
         "// push constant 33\n@33\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n");
+    assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::LOCAL, 3)), 
+        "// push local 3\n@3\nD=A\n@local\nA=M+D\nD=M\n".to_owned() +
+                "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
 }
 
+#[test]
+fn trans_pop_test() {
+    let mut tr = Translator::new();
+    assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::LOCAL, 3)),
+        "// pop local 3\n@local\nD=M\n@3\nD=D+A\n@R15\nM=D\n".to_owned() + 
+        "@SP\nA=M\nD=M\n@SP\nM=M+1\n" + 
+        "@R15\nA=M\nM=D\n");
+}
 
 fn main() -> Result<(), std::io::Error> {
     let root = std::env::args().nth(1).expect("usage: $0 <fname.vm>");
