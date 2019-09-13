@@ -85,14 +85,24 @@ impl Parser {
 mod tests {
     use super::*;
 
+    fn check_err(r: Result<Option<VMCommand>, ParserError>, desc: &str) -> bool {
+        if let Err(pe) = r {
+            pe.description == desc
+        } else {
+            false
+        }
+    }
+
     #[test]
     fn simple_parse_str_test() {
         let p = Parser::new("foo.vm");
         assert_eq!(p.parse_str(""), Ok(None));
         assert_eq!(p.parse_str("// foo bar"), Ok(None));
         assert_eq!(p.parse_str("add"), Ok(Some(VMCommand::Arithmetic(VMOp::ADD))));
-        assert!(p.parse_str("pop foo bar").is_err());
-        assert!(p.parse_str("push splat bar").is_err());
+        assert!(check_err(p.parse_str("pop foo 19"),"Invalid segment name"));
+        assert!(check_err(p.parse_str("pop temp bar"),"Invalid command format"));
+        assert!(check_err(p.parse_str("push splat 22"),"Invalid segment name"));
+        assert!(check_err(p.parse_str("sblot temp 22"),"Invalid command name"));
         assert_eq!(p.parse_str("push constant 33"), Ok(Some(VMCommand::Push(VMSeg::CONSTANT, 33))));
         assert_eq!(p.parse_str("pop local 3"), Ok(Some(VMCommand::Pop(VMSeg::LOCAL, 3))));
     }
