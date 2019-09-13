@@ -29,7 +29,7 @@ impl fmt::Debug for ParserError {
 }
 
 impl Parser {
-    pub fn new(fname: &str) -> Parser {
+    pub fn new (fname: &str) -> Parser {
         Parser{file_name: fname.to_string(), line_num: 0}
     }
 
@@ -41,7 +41,8 @@ impl Parser {
             code: code.to_string()}
     }
 
-    pub fn parse_str(&self, cmd_str: &str) -> Result<Option<VMCommand>, ParserError> {
+    pub fn parse_str(&mut self, cmd_str: &str) -> Result<Option<VMCommand>, ParserError> {
+        self.line_num += 1;
         let ws: Vec<&str> = cmd_str.split_whitespace().collect();
         if ws.len() < 1 || ws[0] == "//" {
             Ok(None)
@@ -95,7 +96,7 @@ mod tests {
 
     #[test]
     fn simple_parse_str_test() {
-        let p = Parser::new("foo.vm");
+        let mut p = Parser::new("foo.vm");
         assert_eq!(p.parse_str(""), Ok(None));
         assert_eq!(p.parse_str("// foo bar"), Ok(None));
         assert_eq!(p.parse_str("add"), Ok(Some(VMCommand::Arithmetic(VMOp::ADD))));

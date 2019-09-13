@@ -14,17 +14,23 @@ fn main() -> Result<(), std::io::Error> {
     let outfile_path = format!("{}.asm", base);
     let infile = File::open(infile_path.to_string())?;
     let rdr = BufReader::new(&infile);
-    let mut outfile = File::create(outfile_path)?;
-    let parser = Parser::new(&infile_path);
 
-    // Need to not just unwrap the errors.  Refactor.
-    let cmds = rdr.lines()
-        .map(|x| parser.parse_str(&x.unwrap()).unwrap());
+    let mut outfile = File::create(outfile_path)?;
+    let mut parser = Parser::new(&infile_path);
 
     let mut tr = Translator::new(&base);
-    for cmd in cmds {
-        let asm = tr.trans_cmd(cmd.unwrap());
-        write!(&mut outfile, "{}", asm).unwrap();
+    for some_line in rdr.lines() {
+        let line = some_line.unwrap();
+        match parser.parse_str(&line) {
+            Ok(Some(cmd)) => {
+                let asm = tr.trans_cmd(cmd);
+                write!(&mut outfile, "{}", asm).unwrap();
+            },
+            Ok(None) => {},  // comment or whitespace
+            Err(e) => {
+                println!("ERROR: {:?}", e);
+            },
+        }
     }
     
     Ok(())
