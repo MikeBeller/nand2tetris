@@ -8,20 +8,23 @@ pub struct Parser {
 
 #[derive(PartialEq)]
 pub struct ParserError {
-    file: String,
-    line: i32,
-    msg: String,
+    file_name: String,
+    line_num: i32,
+    description: String,
+    code: String,
 }
 
 impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ParserError: File: {}, Line: {} -- {}\n", self.file, self.line, self.msg)
+        write!(f, "ParserError: File: {}, Line: {},  Error: {}, Code: {}\n",
+               self.file_name, self.line_num, self.description, self.code)
     }
 }
 
 impl fmt::Debug for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ParserError: {} {} {}", self.file, self.line, self.msg)
+        write!(f, "ParserError: File: {}, Line: {},  Error: {}, Code: {}\n",
+               self.file_name, self.line_num, self.description, self.code)
     }
 }
 
@@ -30,8 +33,12 @@ impl Parser {
         Parser{file_name: fname.to_string(), line_num: 0}
     }
 
-    fn parser_error(&self, msg: &str) -> ParserError {
-        ParserError{file: self.file_name.to_owned(), line: self.line_num, msg: msg.to_string()}
+    fn parser_error(&self, desc: &str, code: &str) -> ParserError {
+        ParserError{
+            file_name: self.file_name.to_owned(),
+            line_num: self.line_num,
+            description: desc.to_string(),
+            code: code.to_string()}
     }
 
     pub fn parse_str(&self, cmd_str: &str) -> Result<Option<VMCommand>, ParserError> {
@@ -46,13 +53,13 @@ impl Parser {
                     if let Ok(n) = ws[2].parse::<i32>() {
                         Ok(Some(VMCommand::Push(seg, n)))
                     } else {
-                        Err(self.parser_error(&format!("Invalid number in push command: {}", cmd_str)))
+                        Err(self.parser_error("Invalid command format", cmd_str))
                     }
                 } else {
-                    Err(self.parser_error(&format!("Invalid segment name in push command: {}", cmd_str)))
+                    Err(self.parser_error("Invalid segment name", cmd_str))
                 }
             } else {
-                Err(self.parser_error(&format!("Invalid push command: {}", cmd_str)))
+                Err(self.parser_error("Invalid command format", cmd_str))
             }
         } else if ws[0] == "pop" {
             if ws.len() == 3 {
@@ -60,16 +67,16 @@ impl Parser {
                     if let Ok(n) = ws[2].parse::<i32>() {
                         Ok(Some(VMCommand::Pop(seg, n)))
                     } else {
-                        Err(self.parser_error(&format!("Invalid number in pop command: {}", cmd_str)))
+                        Err(self.parser_error("Invalid command format", cmd_str))
                     }
                 } else {
-                    Err(self.parser_error(&format!("Invalid segment name in pop command: {}", cmd_str)))
+                    Err(self.parser_error("Invalid segment name", cmd_str))
                 }
             } else {
-                Err(self.parser_error(&format!("Invalid pop command: {}", cmd_str)))
+                Err(self.parser_error("Invalid command format", cmd_str))
             }
         } else {
-            Err(self.parser_error(&format!("Invalid command: {}", ws[0])))
+            Err(self.parser_error("Invalid command name", cmd_str))
         }
     }
 }
