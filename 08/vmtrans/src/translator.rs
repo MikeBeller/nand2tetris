@@ -111,6 +111,18 @@ impl Translator {
                 // *R15 = D
                 r.push_str("@R15\nA=M\nM=D\n");
             },
+            VMCommand::Label(label_str) => {
+                writeln!(&mut r, "// label {}", label_str).unwrap();
+                writeln!(&mut r, "({})", label_str).unwrap();
+            },
+            VMCommand::Goto(label_str) => {
+                writeln!(&mut r, "// goto {}", label_str).unwrap();
+                writeln!(&mut r, "@{}\n0;JMP", label_str).unwrap();
+            },
+            VMCommand::IfGoto(label_str) => {
+                writeln!(&mut r, "// if-goto {}", label_str).unwrap();
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@{}\nD;JNE", label_str).unwrap();
+            },
             _ => {}
         }
         r
@@ -208,5 +220,13 @@ mod tests {
             "// pop static 9\n@Splat.9\nD=A\n@R15\nM=D\n".to_owned() + 
             "@SP\nAM=M-1\nD=M\n" + 
             "@R15\nA=M\nM=D\n");
+    }
+
+    #[test]
+    fn trans_goto_test() {
+        let mut tr = Translator::new("Splat");
+        assert_eq!(tr.trans_cmd(VMCommand::Label("foo".to_string())), "// label foo\n(foo)\n");
+        assert_eq!(tr.trans_cmd(VMCommand::Goto("foo".to_string())), "// goto foo\n@foo\n0;JMP\n");
+        assert_eq!(tr.trans_cmd(VMCommand::IfGoto("foo".to_string())), "// if-goto foo\n@SP\nAM=M-1\nD=M\n@foo\nD;JNE\n");
     }
 }

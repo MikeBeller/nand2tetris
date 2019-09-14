@@ -49,7 +49,7 @@ impl Parser {
         } else if let Some(vmc) = VMOp::from_str(ws[0]) {
             Ok(Some(VMCommand::Arithmetic(vmc)))
         } else if ws[0] == "push" || ws[0] == "pop" {
-            if ws.len() == 3 {
+            if ws.len() >= 3 {
                 if let Some(seg) = VMSeg::from_str(ws[1]) {
                     if let Ok(n) = ws[2].parse::<i32>() {
                         if ws[0] == "push" {
@@ -67,7 +67,7 @@ impl Parser {
                 Err(self.parser_error("Invalid command format", cmd_str))
             }
         } else if ws[0] == "label" || ws[0] == "goto" || ws[0] == "if-goto" {
-            if ws.len() == 2 {
+            if ws.len() >= 2 {
                 if ws[0] == "label" {
                     Ok(Some(VMCommand::Label(ws[1].to_string())))
                 } else if ws[0] == "goto" {
@@ -79,7 +79,7 @@ impl Parser {
                 Err(self.parser_error("Invalid command format", cmd_str))
             }
         } else if ws[0] == "function" || ws[0] == "call" {
-            if ws.len() == 3 {
+            if ws.len() >= 3 {
                 if let Ok(n) = ws[2].parse::<i32>() {
                     if ws[0] == "function" {
                         Ok(Some(VMCommand::Function(ws[1].to_string(), n)))
@@ -123,6 +123,7 @@ mod tests {
         assert!(check_err(p.parse_str("push splat 22"),"Invalid segment name"));
         assert!(check_err(p.parse_str("sblot temp 22"),"Invalid command name"));
         assert_eq!(p.parse_str("push constant 33"), Ok(Some(VMCommand::Push(VMSeg::CONSTANT, 33))));
+        assert_eq!(p.parse_str("push constant 33 // snooty"), Ok(Some(VMCommand::Push(VMSeg::CONSTANT, 33))));
         assert_eq!(p.parse_str("pop local 3"), Ok(Some(VMCommand::Pop(VMSeg::LOCAL, 3))));
         assert_eq!(p.parse_str("label foo"), Ok(Some(VMCommand::Label("foo".to_string()))));
         assert_eq!(p.parse_str("goto foo"), Ok(Some(VMCommand::Goto("foo".to_string()))));
