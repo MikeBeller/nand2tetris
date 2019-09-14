@@ -96,10 +96,16 @@ impl VMSeg {
     }
 }
 
-#[derive(Debug,PartialEq,Copy,Clone)]
+#[derive(Debug,PartialEq)]
 pub enum VMCommand {
     Arithmetic(VMOp),
     Push(VMSeg, i32),
     Pop(VMSeg, i32),
+    Label(String),
+    Goto(String),
+    IfGoto(String),
+    Function(String, i32),
+    Call(String, i32),
+    Return,
 }
 

@@ -111,7 +111,7 @@ impl Translator {
                 // *R15 = D
                 r.push_str("@R15\nA=M\nM=D\n");
             },
-            //_ => {}
+            _ => {}
         }
         r
     }
