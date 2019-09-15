@@ -149,14 +149,14 @@ impl Translator {
                 writeln!(&mut r, "// function {} {}", label_str, n_locals).unwrap();
                 // Put the label
                 writeln!(&mut r, "({})", label_str).unwrap();
-                // Set up LCL
-                writeln!(&mut r, "@SP\nD=A\n@LCL\nM=D\n").unwrap();
+                // LCL = current SP
+                writeln!(&mut r, "@SP\nD=M\n@LCL\nM=D\n").unwrap();
                 // Zero out the locals
                 writeln!(&mut r, "@SP\nA=M").unwrap();
                 for _i in 0..n_locals {
                     writeln!(&mut r, "M=0\nA=A+1").unwrap();
                 }
-                writeln!(&mut r, "D=A\n@SP\nA=M\nM=D").unwrap();
+                writeln!(&mut r, "D=A\n@SP\nM=D").unwrap();
             },
             VMCommand::Return => {
                 writeln!(&mut r, "// return").unwrap();
@@ -164,7 +164,8 @@ impl Translator {
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@ARG\nA=M\nM=D").unwrap();
                 // Save ARG in R15
                 writeln!(&mut r, "@ARG\nD=M\n@R15\nM=D").unwrap();
-                // Save THAT, THIS, ARG, LCL
+                // Restore THAT, THIS, ARG, LCL
+                writeln!(&mut r, "@LCL\nD=M\n@SP\nM=D").unwrap();
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@THAT\nM=D").unwrap();
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@THIS\nM=D").unwrap();
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@ARG\nM=D").unwrap();
@@ -285,6 +286,8 @@ mod tests {
     #[test]
     fn trans_function_test() {
         let mut tr = Translator::new("Splat");
-        println!("{}", tr.trans_cmd(VMCommand::Call("FOO".to_string(), 2)));
+        println!("{}", tr.trans_cmd(VMCommand::Call("FOO".to_string(), 2)).replace("\n","\\n"));
+        println!("{}", tr.trans_cmd(VMCommand::Function("FOO".to_string(), 2)).replace("\n","\\n"));
+        println!("{}", tr.trans_cmd(VMCommand::Return).replace("\n","\\n"));
     }
 }
