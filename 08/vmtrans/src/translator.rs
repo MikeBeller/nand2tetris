@@ -5,11 +5,17 @@ use crate::types::*;
 pub struct Translator {
     file_name: String,
     label_num: i32,
+    return_num: i32,
 }
 
 impl Translator {
     pub fn new(fname: &str) -> Translator {
-        Translator{file_name: fname.to_string(), label_num: 0}
+        Translator{file_name: fname.to_string(), label_num: 0, return_num: 0}
+    }
+
+    fn get_return_address(&mut self) -> String {
+        self.return_num += 1;
+        format!("RETURN.{}", self.return_num-1)
     }
 
     pub fn trans_cmd(&mut self, cmd: VMCommand) -> String {
@@ -123,7 +129,53 @@ impl Translator {
                 writeln!(&mut r, "// if-goto {}", label_str).unwrap();
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@{}\nD;JNE", label_str).unwrap();
             },
-            _ => {}
+            VMCommand::Call(label_str, n_args) => {
+                writeln!(&mut r, "// call {} {}", label_str, n_args).unwrap();
+                // push return address
+                let return_label = self.get_return_address();
+                writeln!(&mut r, "@{}\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1", return_label).unwrap();
+                // push LCL, ARG, THIS, THAT
+                writeln!(&mut r, "@LCL\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
+                writeln!(&mut r, "@ARG\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
+                writeln!(&mut r, "@THIS\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
+                writeln!(&mut r, "@THAT\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
+                // compute and store new ARG
+                writeln!(&mut r, "@SP\nD={}\nD=A-D\n@ARG\nM=D", n_args).unwrap();
+                // jump to the function, and write the return label
+                writeln!(&mut r, "@{}\n0; JMP", label_str).unwrap();
+                writeln!(&mut r, "({})", return_label).unwrap();
+            },
+            VMCommand::Function(label_str, n_locals) => {
+                writeln!(&mut r, "// function {} {}", label_str, n_locals).unwrap();
+                // Put the label
+                writeln!(&mut r, "({})", label_str).unwrap();
+                // Set up LCL
+                writeln!(&mut r, "@SP\nD=A\n@LCL\nM=D\n").unwrap();
+                // Zero out the locals
+                writeln!(&mut r, "@SP\nA=M").unwrap();
+                for _i in 0..n_locals {
+                    writeln!(&mut r, "M=0\nA=A+1").unwrap();
+                }
+                writeln!(&mut r, "D=A\n@SP\nA=M\nM=D").unwrap();
+            },
+            VMCommand::Return => {
+                writeln!(&mut r, "// return").unwrap();
+                // Copy return value onto argument 0
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@ARG\nA=M\nM=D").unwrap();
+                // Save ARG in R15
+                writeln!(&mut r, "@ARG\nD=M\n@R15\nM=D").unwrap();
+                // Save THAT, THIS, ARG, LCL
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@THAT\nM=D").unwrap();
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@THIS\nM=D").unwrap();
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@ARG\nM=D").unwrap();
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@LCL\nM=D").unwrap();
+                // Save return address in R14
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@R14\nM=D").unwrap();
+                // Restore SP as old ARG + 1
+                writeln!(&mut r, "@R15\nD=M\n@SP\nM=D+1").unwrap();
+                // Jump to return address
+                writeln!(&mut r, "@R14\nA=M\n0;JMP").unwrap();
+            },
         }
         r
     }
@@ -228,5 +280,11 @@ mod tests {
         assert_eq!(tr.trans_cmd(VMCommand::Label("foo".to_string())), "// label foo\n(foo)\n");
         assert_eq!(tr.trans_cmd(VMCommand::Goto("foo".to_string())), "// goto foo\n@foo\n0;JMP\n");
         assert_eq!(tr.trans_cmd(VMCommand::IfGoto("foo".to_string())), "// if-goto foo\n@SP\nAM=M-1\nD=M\n@foo\nD;JNE\n");
+    }
+
+    #[test]
+    fn trans_function_test() {
+        let mut tr = Translator::new("Splat");
+        println!("{}", tr.trans_cmd(VMCommand::Call("FOO".to_string(), 2)));
     }
 }
