@@ -13,6 +13,10 @@ impl Translator {
         Translator{file_name: fname.to_string(), label_num: 0, return_num: 0}
     }
 
+    pub fn gen_bootstrap() -> String {
+        "@256\nD=A\n@SP\nM=D\n@Sys.init\n0;JMP\n".to_string()
+    }
+
     fn get_return_address(&mut self) -> String {
         self.return_num += 1;
         format!("RETURN.{}", self.return_num-1)
