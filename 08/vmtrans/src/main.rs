@@ -37,14 +37,14 @@ fn main() -> Result<(), std::io::Error> {
     // If called with a directory name -- generate ASM for *.vm in that directory,
     // and generate bootstrap code which sets SP and calls Sys.init
     let arg = std::env::args().nth(1).expect("usage: $0 <fname.vm|dirname>");
-    let inpath = Path::new(&arg);
+    let inpath = Path::new(&arg).canonicalize()?;
     let base = inpath.file_stem().unwrap().to_string_lossy().into_owned();
     let outfile_name = format!("{}.asm", &base);
     let mut outfile = File::create(outfile_name)?;
 
     if inpath.is_file() {
         if inpath.extension().unwrap() == "vm" {
-            process_file(&base, inpath, &mut outfile)?;
+            process_file(&base, &inpath, &mut outfile)?;
         } else {
             panic!("Input is a file and does not have a .vm extension");
         }

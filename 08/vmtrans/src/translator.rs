@@ -14,7 +14,9 @@ impl Translator {
     }
 
     pub fn gen_bootstrap() -> String {
-        "@256\nD=A\n@SP\nM=D\n@Sys.init\n0;JMP\n".to_string()
+        let mut tr = Translator::new("bootstrap");
+        "@256\nD=A\n@SP\nM=D\n@Sys.init\n0;JMP\n".to_string() +
+            &tr.trans_cmd(VMCommand::Call("Sys.init".to_string(), 0))
     }
 
     fn get_return_address(&mut self) -> String {
@@ -144,7 +146,7 @@ impl Translator {
                 writeln!(&mut r, "@THIS\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 writeln!(&mut r, "@THAT\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 // compute and store new ARG
-                writeln!(&mut r, "@SP\nD={}\nD=A-D\n@ARG\nM=D", n_args).unwrap();
+                writeln!(&mut r, "@SP\nD=M\n@{}\nD=D-A\n@ARG\nM=D", n_args).unwrap();
                 // jump to the function, and write the return label
                 writeln!(&mut r, "@{}\n0; JMP", label_str).unwrap();
                 writeln!(&mut r, "({})", return_label).unwrap();
@@ -154,7 +156,7 @@ impl Translator {
                 // Put the label
                 writeln!(&mut r, "({})", label_str).unwrap();
                 // LCL = current SP
-                writeln!(&mut r, "@SP\nD=M\n@LCL\nM=D\n").unwrap();
+                writeln!(&mut r, "@SP\nD=M\n@LCL\nM=D").unwrap();
                 // Zero out the locals
                 writeln!(&mut r, "@SP\nA=M").unwrap();
                 for _i in 0..n_locals {
