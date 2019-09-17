@@ -14,8 +14,9 @@ impl Translator {
     }
 
     pub fn gen_bootstrap() -> String {
+        //"@256\nD=A\n@SP\nM=D\n@Sys.init\n0;JMP\n".to_string() 
         let mut tr = Translator::new("bootstrap");
-        "@256\nD=A\n@SP\nM=D\n@Sys.init\n0;JMP\n".to_string() +
+        "@256\nD=A\n@SP\nM=D\n".to_string()  + 
             &tr.trans_cmd(VMCommand::Call("Sys.init".to_string(), 0))
     }
 
@@ -146,7 +147,9 @@ impl Translator {
                 writeln!(&mut r, "@THIS\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 writeln!(&mut r, "@THAT\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 // compute and store new ARG
-                writeln!(&mut r, "@SP\nD=M\n@{}\nD=D-A\n@ARG\nM=D", n_args).unwrap();
+                writeln!(&mut r, "@SP\nD=M\n@{}\nD=D-A\n@ARG\nM=D", n_args+5).unwrap();
+                // LCL = current SP
+                writeln!(&mut r, "@SP\nD=M\n@LCL\nM=D").unwrap();
                 // jump to the function, and write the return label
                 writeln!(&mut r, "@{}\n0; JMP", label_str).unwrap();
                 writeln!(&mut r, "({})", return_label).unwrap();
@@ -155,8 +158,6 @@ impl Translator {
                 writeln!(&mut r, "// function {} {}", label_str, n_locals).unwrap();
                 // Put the label
                 writeln!(&mut r, "({})", label_str).unwrap();
-                // LCL = current SP
-                writeln!(&mut r, "@SP\nD=M\n@LCL\nM=D").unwrap();
                 // Zero out the locals
                 writeln!(&mut r, "@SP\nA=M").unwrap();
                 for _i in 0..n_locals {
@@ -178,7 +179,7 @@ impl Translator {
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@LCL\nM=D").unwrap();
                 // Save return address in R14
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@R14\nM=D").unwrap();
-                // Restore SP as old ARG + 1
+                // SP = R15 + 1
                 writeln!(&mut r, "@R15\nD=M\n@SP\nM=D+1").unwrap();
                 // Jump to return address
                 writeln!(&mut r, "@R14\nA=M\n0;JMP").unwrap();
