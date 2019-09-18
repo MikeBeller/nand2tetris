@@ -172,6 +172,7 @@ impl Translator {
                 // Save ARG in R15
                 writeln!(&mut r, "@ARG\nD=M\n@R15\nM=D").unwrap();
                 // Restore THAT, THIS, ARG, LCL
+                //   set SP = LCL, then pop in reverse order
                 writeln!(&mut r, "@LCL\nD=M\n@SP\nM=D").unwrap();
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@THAT\nM=D").unwrap();
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@THIS\nM=D").unwrap();
