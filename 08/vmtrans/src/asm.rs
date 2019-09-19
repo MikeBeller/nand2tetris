@@ -278,6 +278,17 @@ pub fn parse_cmd(st: &str) -> Result<Option<Command>,ParserError> {
     }
 }
 
+pub fn parse_code_str(code: &str) -> Result<Vec<Command>, ParserError> {
+    let mut r: Vec<Command> = vec![];
+    for line in code.lines() {
+        let op_c = parse_cmd(line)?;
+        if let Some(c) = op_c {
+            r.push(c);
+        }
+    }
+    Ok(r)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -294,6 +305,13 @@ mod tests {
         assert_eq!(parse_cmd("0;JMP"), Ok(Some(Command::C(Dest::Null, Comp::Zero, Jump::JMP))));
         assert_eq!(parse_cmd("AM=M+1;JGE"), Ok(Some(Command::C(Dest::AM, Comp::MPlusOne, Jump::JGE))));
     }
+
+    #[test]
+    fn test_parse_code_str() {
+        assert_eq!(parse_code_str("@32\n// foo\n0;JMP\n"), Ok(vec![Command::A(32), Command::C(Dest::Null, Comp::Zero, Jump::JMP)]));
+        assert!(parse_code_str("@32\nxyx\nM=1\n").is_err());
+    }
 }
+
 
 
