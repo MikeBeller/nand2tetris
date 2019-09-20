@@ -1,11 +1,18 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Write;
 
+pub struct Asm {
+    pc: i16,
+    syms: HashMap<String,i16>,
+}
+
 #[derive(Debug,PartialEq)]
 pub enum Command {
-    A(i32),
+    A(i16),
     ALabel(String),
     C(Dest, Comp, Jump),
+    Label(String),
 }
 
 impl Command {
@@ -24,6 +31,7 @@ impl Command {
                 }
                 r
             },
+            Command::Label(label) => format!("({})", label),
         }
     }
 }
@@ -232,61 +240,100 @@ impl fmt::Debug for ParserError {
 }
 
 
-pub fn parse_cmd(st: &str) -> Result<Option<Command>,ParserError> {
-    let mut s: &str = &st.replace(" ","");
-    let f = s.split("//").collect::<Vec<_>>();
-    s = &f[0];
-    if s.len() == 0 {
-        return Ok(None)
+impl Asm {
+    pub fn new() -> Asm {
+        let mut asm = Asm{pc: 0, syms: HashMap::new()};
+        asm.syms.insert("SP".to_string(), 0);
+        asm.syms.insert("LCL".to_string(), 1);
+        asm.syms.insert("ARG".to_string(), 2);
+        asm.syms.insert("THIS".to_string(), 3);
+        asm.syms.insert("THAT".to_string(), 4);
+        asm
     }
-    if s.starts_with("@") {
-        let rest = &s[1..];
-        if rest.len() == 0 {
-            Ok(None)
-        } else if let Ok(n) = rest.parse::<i32>() {
-            Ok(Some(Command::A(n)))
-        } else {
-            Ok(Some(Command::ALabel(rest.to_string())))
-        }
-    } else {
-        let mut jump = Jump::Null;
-        let f = s.split(";").collect::<Vec<_>>();
-        if f.len() == 2 {
-            if let Some(j) = Jump::from_str(f[1]) {
-                jump = j;
-            } else {
-                return Err(ParserError{code: st.to_string()});
-            }
-        }
+
+    pub fn parse_cmd(&self, st: &str) -> Result<Option<Command>,ParserError> {
+        let mut s: &str = &st.replace(" ","");
+        let f = s.split("//").collect::<Vec<_>>();
         s = &f[0];
-        let mut dest = Dest::Null;
-        let f = s.split("=").collect::<Vec<_>>();
-        if f.len() == 2 {
-            if let Some(d) = Dest::from_str(f[0]) {
-                dest = d;
+        if s.len() == 0 {
+            return Ok(None)
+        }
+        if s.starts_with("(") {
+            Ok(Some(Command::Label(s[1..(s.len()-1)].to_string())))
+        } else if s.starts_with("@") {
+            let rest = &s[1..];
+            if rest.len() == 0 {
+                Ok(None)
+            } else if let Ok(n) = rest.parse::<i16>() {
+                Ok(Some(Command::A(n)))
             } else {
-                return Err(ParserError{code: st.to_string()});
+                Ok(Some(Command::ALabel(rest.to_string())))
             }
-
-            s = &f[1];
-        }
-        if let Some(c) = Comp::from_str(s) {
-            Ok(Some(Command::C(dest, c, jump)))
         } else {
-            Err(ParserError{code: s.to_string()})
-        }
-    }
-}
+            let mut jump = Jump::Null;
+            let f = s.split(";").collect::<Vec<_>>();
+            if f.len() == 2 {
+                if let Some(j) = Jump::from_str(f[1]) {
+                    jump = j;
+                } else {
+                    return Err(ParserError{code: st.to_string()});
+                }
+            }
+            s = &f[0];
+            let mut dest = Dest::Null;
+            let f = s.split("=").collect::<Vec<_>>();
+            if f.len() == 2 {
+                if let Some(d) = Dest::from_str(f[0]) {
+                    dest = d;
+                } else {
+                    return Err(ParserError{code: st.to_string()});
+                }
 
-pub fn parse_code_str(code: &str) -> Result<Vec<Command>, ParserError> {
-    let mut r: Vec<Command> = vec![];
-    for line in code.lines() {
-        let op_c = parse_cmd(line)?;
-        if let Some(c) = op_c {
-            r.push(c);
+                s = &f[1];
+            }
+            if let Some(c) = Comp::from_str(s) {
+                Ok(Some(Command::C(dest, c, jump)))
+            } else {
+                Err(ParserError{code: s.to_string()})
+            }
         }
     }
-    Ok(r)
+
+    pub fn parse_code_str(&mut self, code: &str) -> Result<Vec<Command>, ParserError> {
+        // convert to commands, and keep track of labels
+        let mut r: Vec<Command> = vec![];
+        for line in code.lines() {
+            let op_c = self.parse_cmd(line)?;
+            match op_c {
+                Some(Command::Label(ref s)) => {
+                    self.syms.insert(s.to_string(), self.pc);
+                },
+                Some(c) => {
+                    r.push(c);
+                    self.pc = r.len() as i16;
+                },
+                None => {},
+            }
+        }
+
+        // now convert labels to numbers
+        for i in 0..r.len() {
+            match &r[i] {
+                Command::ALabel(ref label) => {
+                    match self.syms.get(label) {
+                        Some(val) => {
+                            r[i] = Command::A(*val as i16);
+                        },
+                        None => {
+                            panic!("Assembler doesn't yet handle missing labels: {}", label);
+                        }
+                    }
+                },
+                _ => {},
+            }
+        }
+        Ok(r)
+    }
 }
 
 
@@ -296,20 +343,24 @@ mod tests {
 
     #[test]
     fn test_a() {
-        assert_eq!(parse_cmd(""), Ok(None));
-        assert_eq!(parse_cmd("// foo"), Ok(None));
-        assert_eq!(parse_cmd("@23"), Ok(Some(Command::A(23))));
-        assert_eq!(parse_cmd("@F34"), Ok(Some(Command::ALabel("F34".to_string()))));
-        assert_eq!(parse_cmd("M+1"), Ok(Some(Command::C(Dest::Null, Comp::MPlusOne, Jump::Null))));
-        assert!(parse_cmd("M1").is_err());
-        assert_eq!(parse_cmd("0;JMP"), Ok(Some(Command::C(Dest::Null, Comp::Zero, Jump::JMP))));
-        assert_eq!(parse_cmd("AM=M+1;JGE"), Ok(Some(Command::C(Dest::AM, Comp::MPlusOne, Jump::JGE))));
+        let asm = Asm::new();
+        assert_eq!(asm.parse_cmd(""), Ok(None));
+        assert_eq!(asm.parse_cmd("// foo"), Ok(None));
+        assert_eq!(asm.parse_cmd("@23"), Ok(Some(Command::A(23))));
+        assert_eq!(asm.parse_cmd("@F34"), Ok(Some(Command::ALabel("F34".to_string()))));
+        assert_eq!(asm.parse_cmd("M+1"), Ok(Some(Command::C(Dest::Null, Comp::MPlusOne, Jump::Null))));
+        assert!(asm.parse_cmd("M1").is_err());
+        assert_eq!(asm.parse_cmd("0;JMP"), Ok(Some(Command::C(Dest::Null, Comp::Zero, Jump::JMP))));
+        assert_eq!(asm.parse_cmd("AM=M+1;JGE"), Ok(Some(Command::C(Dest::AM, Comp::MPlusOne, Jump::JGE))));
     }
 
     #[test]
     fn test_parse_code_str() {
-        assert_eq!(parse_code_str("@32\n// foo\n0;JMP\n"), Ok(vec![Command::A(32), Command::C(Dest::Null, Comp::Zero, Jump::JMP)]));
-        assert!(parse_code_str("@32\nxyx\nM=1\n").is_err());
+        let mut asm = Asm::new();
+        assert_eq!(asm.parse_code_str("@32\n// foo\n0;JMP\n"), Ok(vec![Command::A(32), Command::C(Dest::Null, Comp::Zero, Jump::JMP)]));
+        assert!(asm.parse_code_str("@32\nxyx\nM=1\n").is_err());
+        assert_eq!(asm.parse_code_str("@FOO\n0;JMP\n(FOO)\n"), Ok(vec![Command::A(2), Command::C(Dest::Null, Comp::Zero, Jump::JMP)]));
+        assert_eq!(asm.parse_code_str("@THIS\nM=1\n"), Ok(vec![Command::A(3), Command::C(Dest::M, Comp::One, Jump::Null)]));
     }
 }
 
