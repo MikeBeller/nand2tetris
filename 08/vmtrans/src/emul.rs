@@ -1,10 +1,10 @@
 use crate::asm::{Comp,Dest,Jump,Command,Asm,ParserError};
 
 pub struct Emul {
-    a: i16,
-    d: i16,
+    pub a: i16,
+    pub d: i16,
     pc: usize,
-    ram: [i16; 32768],
+    pub ram: [i16; 32768],
 }
 
 impl Emul {
@@ -131,4 +131,5 @@ mod tests {
         em.run_code("@33\nD=A\nA=1\nM=D\n", 50).unwrap();
         assert_eq!(em.ram[1], 33);
     }
+    // need way more tests?
 }

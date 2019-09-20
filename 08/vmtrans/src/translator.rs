@@ -195,6 +195,7 @@ impl Translator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emul::Emul;
 
     #[test]
     fn trans_bin_test() {
@@ -207,6 +208,18 @@ mod tests {
             "// and\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M&D\n");
         assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::OR)), 
             "// or\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M|D\n");
+    }
+
+    #[test]
+    fn trans_bin_asm_test() {
+        let mut tr = Translator::new("Splat");
+        let code = tr.trans_cmd(VMCommand::Arithmetic(VMOp::ADD));
+        let mut em = Emul::new();
+        em.ram[0] = 258;
+        em.ram[256] = 3; em.ram[257] = 7;
+        em.run_code(&code, 50).unwrap();
+        assert_eq!(em.ram[0], 257);
+        assert_eq!(em.ram[256], 10);
     }
 
     #[test]
