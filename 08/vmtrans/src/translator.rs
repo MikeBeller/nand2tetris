@@ -305,68 +305,63 @@ mod tests {
                     "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
     }
 
-    /*
     #[test]
     fn trans_pop_asm_test() {
+        /* Scenario:
+         * Assume a 2-argument, 2 local function has been called, starting from SP=256.
+         * This means ARG=256, then there are 2 spots for arguments (256,257) and 5 spots
+         * for saved RA,ARG,LCL,THIS,THAT (258,259,260,261,262).  So LCL should point to 263.
+         * With two local variables, SP should then point to 265.  We load the stack with
+         * 9 values, and pop them into various places, and check that SP and popped values
+         * are correct.
+         */
         let table = &[
-            (VMSeg::LOCAL, 1),
+            (VMSeg::ARGUMENT, 0),
             (VMSeg::ARGUMENT, 1),
+            (VMSeg::LOCAL, 0),
+            (VMSeg::LOCAL, 1),
             (VMSeg::POINTER, 0),
             (VMSeg::POINTER, 1),
-            (VMSeg::TEMP, 0),
+            (VMSeg::TEMP, 1),
             //(VMSeg::STATIC, 9),
         ];
 
         let mut tr = Translator::new("Foo");
         let mut code = String::new();
         for (seg,n) in table {
-            code += &tr.trans_cmd(VMCommand::Push(*seg, *n));
+            code += &tr.trans_cmd(VMCommand::Pop(*seg, *n));
         }
         let mut em = Emul::new();
+        // everything in RAM is preset to zero
         em.set_ram(&[
-                   (0, 263),
+                   (0, 272),
                    (1, 262),
                    (2, 256),
-                   (3, -3),
-                   (4, -4),
-                   (5, -5),
-                   //(16, -6),
-                   (256, 17),
-                   (262, 99),
+                   (265, -7),
+                   (266, -6),
+                   (267, -5),
+                   (268, -4),
+                   (269, -3),
+                   (270, -2),
+                   (271, -1),
+
         ]);
 
         em.run_code(&code, 100).unwrap();
-        assert_eq!(em.ram[0], 263+table.len() as i16, "SP wrong");
-        assert_eq!(em.ram[263], 33, "Wrong result from push constant 33");
-        assert_eq!(em.ram[264], 77, "Wrong result from push constant 77");
-        assert_eq!(em.ram[265], 99, "Wrong result from push local 0");
-        assert_eq!(em.ram[266], 17, "Wrong result from push argument 0");
-        assert_eq!(em.ram[267], -3, "Wrong result from push pointer 0");
-        assert_eq!(em.ram[268], -4, "Wrong result from push pointer 1");
-        assert_eq!(em.ram[269], -5, "Wrong result from push temp 0");
+        assert_eq!(em.ram[0], 265, "SP wrong");
+        assert_eq!(em.ram[256], -1, "Wrong result from pop argument 0");
+        assert_eq!(em.ram[257], -2, "Wrong result from pop argument 1");
+        assert_eq!(em.ram[262], -3, "Wrong result from pop argument 0");
+        assert_eq!(em.ram[263], -4, "Wrong result from pop argument 1");
+        assert_eq!(em.ram[3], -5, "Wrong result from pop pointer 0");
+        assert_eq!(em.ram[4], -6, "Wrong result from pop pointer 1");
+        assert_eq!(em.ram[6], -7, "Wrong result from pop temp 1");
         //assert_eq!(em.ram[270], -6, "Wrong result from static 9");
     }
-    */
 
     #[test]
     fn trans_pop_test() {
         let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::LOCAL, 3)),
-            "// pop local 3\n@LCL\nD=M\n@3\nD=D+A\n@R15\nM=D\n".to_owned() + 
-            "@SP\nAM=M-1\nD=M\n" + 
-            "@R15\nA=M\nM=D\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::TEMP, 7)),
-            "// pop temp 7\n@5\nD=A\n@7\nD=D+A\n@R15\nM=D\n".to_owned() + 
-            "@SP\nAM=M-1\nD=M\n" + 
-            "@R15\nA=M\nM=D\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::POINTER, 0)),
-            "// pop pointer 0\n@THIS\nD=A\n@R15\nM=D\n".to_owned() + 
-            "@SP\nAM=M-1\nD=M\n" + 
-            "@R15\nA=M\nM=D\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::POINTER, 1)),
-            "// pop pointer 1\n@THAT\nD=A\n@R15\nM=D\n".to_owned() + 
-            "@SP\nAM=M-1\nD=M\n" + 
-            "@R15\nA=M\nM=D\n");
         assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::STATIC, 9)),
             "// pop static 9\n@Splat.9\nD=A\n@R15\nM=D\n".to_owned() + 
             "@SP\nAM=M-1\nD=M\n" + 
