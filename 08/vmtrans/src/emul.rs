@@ -114,8 +114,13 @@ impl Emul {
             n_ticks += 1;
         }
 
+        //println!("Got to end at {} with prog {:?}", self.pc, prog);
         if self.pc > prog.len() {
             panic!("Attempt to access non-existent instruction {}", self.pc);
+        }
+
+        if n_ticks >= maxticks {
+            panic!("Too many ticks!");
         }
     }
 

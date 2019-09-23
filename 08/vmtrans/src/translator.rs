@@ -71,7 +71,7 @@ impl Translator {
                         if num < 0 || num > 7 {
                             panic!("Invalid offset for temp segment: {}", num);
                         }
-                        writeln!(&mut r, "@{}\nD=A\n@5\nA=A+D\nD=M", num).unwrap();
+                        writeln!(&mut r, "@{}\nD=M", num+5).unwrap();
                     },
                     VMSeg::POINTER => {
                         if num == 0 {
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn trans_push_asm_constant_test() {
+    fn trans_push_asm_test() {
         let table = &[
             (VMSeg::CONSTANT, 33),
             (VMSeg::CONSTANT, 77),
@@ -249,9 +249,11 @@ mod tests {
             (VMSeg::ARGUMENT, 0),
             (VMSeg::POINTER, 0),
             (VMSeg::POINTER, 1),
+            (VMSeg::TEMP, 0),
+            //(VMSeg::STATIC, 9),
         ];
 
-        let mut tr = Translator::new("foo");
+        let mut tr = Translator::new("Foo");
         let mut code = String::new();
         for (seg,n) in table {
             code += &tr.trans_cmd(VMCommand::Push(*seg, *n));
@@ -263,11 +265,13 @@ mod tests {
                    (2, 256),
                    (3, -3),
                    (4, -4),
+                   (5, -5),
+                   //(16, -6),
                    (256, 17),
                    (262, 99),
         ]);
 
-        em.run_code(&code, 50).unwrap();
+        em.run_code(&code, 100).unwrap();
         assert_eq!(em.ram[0], 263+table.len() as i16, "SP wrong");
         assert_eq!(em.ram[263], 33, "Wrong result from push constant 33");
         assert_eq!(em.ram[264], 77, "Wrong result from push constant 77");
@@ -275,14 +279,13 @@ mod tests {
         assert_eq!(em.ram[266], 17, "Wrong result from push argument 0");
         assert_eq!(em.ram[267], -3, "Wrong result from push pointer 0");
         assert_eq!(em.ram[268], -4, "Wrong result from push pointer 1");
+        assert_eq!(em.ram[269], -5, "Wrong result from push temp 0");
+        //assert_eq!(em.ram[270], -6, "Wrong result from static 9");
     }
 
     #[test]
     fn trans_push_test() {
         let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::TEMP, 3)), 
-            "// push temp 3\n@3\nD=A\n@5\nA=A+D\nD=M\n".to_owned() +
-                    "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
         assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::STATIC, 9)), 
             "// push static 9\n@Splat.9\nD=M\n".to_owned() +
                     "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
@@ -323,9 +326,9 @@ mod tests {
 
     #[test]
     fn trans_function_test() {
-        let mut tr = Translator::new("Splat");
-        println!("{}", tr.trans_cmd(VMCommand::Call("FOO".to_string(), 2)).replace("\n","\\n"));
-        println!("{}", tr.trans_cmd(VMCommand::Function("FOO".to_string(), 2)).replace("\n","\\n"));
-        println!("{}", tr.trans_cmd(VMCommand::Return).replace("\n","\\n"));
+        //let mut tr = Translator::new("Splat");
+        //println!("{}", tr.trans_cmd(VMCommand::Call("FOO".to_string(), 2)).replace("\n","\\n"));
+        //println!("{}", tr.trans_cmd(VMCommand::Function("FOO".to_string(), 2)).replace("\n","\\n"));
+        //println!("{}", tr.trans_cmd(VMCommand::Return).replace("\n","\\n"));
     }
 }
