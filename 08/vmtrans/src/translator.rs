@@ -242,11 +242,75 @@ mod tests {
 
     #[test]
     fn trans_push_asm_test() {
+        /* Scenario:
+         * Assume a 2-argument, 2 local function has been called, starting from SP=256.
+         * This means ARG=256, then there are 2 spots for arguments (256,257) and 5 spots
+         * for saved RA,ARG,LCL,THIS,THAT (258,259,260,261,262).  So LCL should point to 263.
+         * With two local variables, SP should then point to 265.  During the test, we push 9
+         * items on the stack and check that they are where they should be, and that the SP
+         * is correct.
+         */
         let table = &[
             (VMSeg::CONSTANT, 33),
             (VMSeg::CONSTANT, 77),
             (VMSeg::LOCAL, 0),
+            (VMSeg::LOCAL, 1),
             (VMSeg::ARGUMENT, 0),
+            (VMSeg::ARGUMENT, 1),
+            (VMSeg::POINTER, 0),
+            (VMSeg::POINTER, 1),
+            (VMSeg::TEMP, 1),
+            //(VMSeg::STATIC, 9),
+        ];
+
+        let mut tr = Translator::new("Foo");
+        let mut code = String::new();
+        for (seg,n) in table {
+            code += &tr.trans_cmd(VMCommand::Push(*seg, *n));
+        }
+        let mut em = Emul::new();
+        em.set_ram(&[
+                   (0, 265),
+                   (1, 263),
+                   (2, 256),
+                   (3, -3),
+                   (4, -4),
+                   (6, -5),
+                   //(16, -6),
+                   (256, 17),
+                   (257, 18),
+                   (263, 97),
+                   (264, 98),
+        ]);
+
+        em.run_code(&code, 100).unwrap();
+        assert_eq!(em.ram[0], 265+table.len() as i16, "SP wrong");
+        assert_eq!(em.ram[265], 33, "Wrong result from push constant 33");
+        assert_eq!(em.ram[266], 77, "Wrong result from push constant 77");
+        assert_eq!(em.ram[267], 97, "Wrong result from push local 0");
+        assert_eq!(em.ram[268], 98, "Wrong result from push local 1");
+        assert_eq!(em.ram[269], 17, "Wrong result from push argument 0");
+        assert_eq!(em.ram[270], 18, "Wrong result from push argument 1");
+        assert_eq!(em.ram[271], -3, "Wrong result from push pointer 0");
+        assert_eq!(em.ram[272], -4, "Wrong result from push pointer 1");
+        assert_eq!(em.ram[273], -5, "Wrong result from push temp 0");
+        //assert_eq!(em.ram[270], -6, "Wrong result from static 9");
+    }
+
+    #[test]
+    fn trans_push_test() {
+        let mut tr = Translator::new("Splat");
+        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::STATIC, 9)), 
+            "// push static 9\n@Splat.9\nD=M\n".to_owned() +
+                    "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
+    }
+
+    /*
+    #[test]
+    fn trans_pop_asm_test() {
+        let table = &[
+            (VMSeg::LOCAL, 1),
+            (VMSeg::ARGUMENT, 1),
             (VMSeg::POINTER, 0),
             (VMSeg::POINTER, 1),
             (VMSeg::TEMP, 0),
@@ -282,14 +346,7 @@ mod tests {
         assert_eq!(em.ram[269], -5, "Wrong result from push temp 0");
         //assert_eq!(em.ram[270], -6, "Wrong result from static 9");
     }
-
-    #[test]
-    fn trans_push_test() {
-        let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::STATIC, 9)), 
-            "// push static 9\n@Splat.9\nD=M\n".to_owned() +
-                    "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
-    }
+    */
 
     #[test]
     fn trans_pop_test() {
