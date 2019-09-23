@@ -197,19 +197,6 @@ mod tests {
     use super::*;
     use crate::emul::Emul;
 
-/*    #[test]
-    fn trans_bin_test() {
-        let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::ADD)), 
-            "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D+M\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::SUB)), 
-            "// sub\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M-D\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::AND)), 
-            "// and\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D&M\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::OR)), 
-            "// or\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D|M\n");
-    } */
-
     #[test]
     fn trans_bin_asm_test() {
         let table = vec![
@@ -217,63 +204,84 @@ mod tests {
             ((3,7,VMOp::SUB), -4),
             ((3,7,VMOp::AND), 3),
             ((3,7,VMOp::OR), 7),
+            ((3,7,VMOp::EQ), 0),
+            ((7,7,VMOp::EQ), -1),
+            ((3,7,VMOp::LT), -1),
+            ((3,7,VMOp::GT), 0),
+            ((7,1,VMOp::GT), -1),
         ];
 
         for ((a,b,op), expected) in table {
             let mut tr = Translator::new("foo");
             let code = tr.trans_cmd(VMCommand::Arithmetic(op));
             let mut em = Emul::new();
-            em.ram[0] = 258;
-            em.ram[256] = a; em.ram[257] = b;
+            em.set_ram(&[(0,258), (256, a), (257, b)]);
             em.run_code(&code, 50).unwrap();
-            assert_eq!(em.ram[0], 257);
-            assert_eq!(em.ram[256], expected);
+            assert_eq!(em.ram[0], 257, "SP wrong");
+            assert_eq!(em.ram[256], expected, "Wrong result from operation");
         }
     }
 
     #[test]
-    fn trans_unary_test() {
-        let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::NEG)), "// neg\n@SP\nA=M-1\nM=-M\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::NOT)), "// not\n@SP\nA=M-1\nM=!M\n");
+    fn trans_unary_asm_test() {
+        let table = vec![
+            ((3,VMOp::NEG), -3),
+            ((-1,VMOp::NOT), 0),
+        ];
+
+        for ((a,op), expected) in table {
+            let mut tr = Translator::new("foo");
+            let code = tr.trans_cmd(VMCommand::Arithmetic(op));
+            let mut em = Emul::new();
+            em.set_ram(&[(0,257), (256, a)]);
+            em.run_code(&code, 50).unwrap();
+            assert_eq!(em.ram[0], 257, "SP wrong");
+            assert_eq!(em.ram[256], expected, "Wrong result from operation");
+        }
     }
 
     #[test]
-    fn trans_cmp_test() {
-        let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::EQ)), 
-                   "// eq\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n".to_owned() +
-                   "@TST.0\nD;JEQ\n@SP\nA=M\nM=0\n" +
-                   "(TST.0)\n@SP\nM=M+1\n"
-                   );
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::LT)), 
-                   "// lt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n".to_owned() +
-                   "@TST.1\nD;JLT\n@SP\nA=M\nM=0\n" +
-                   "(TST.1)\n@SP\nM=M+1\n"
-                   );
-        assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::GT)), 
-                   "// gt\n@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n".to_owned() +
-                   "@TST.2\nD;JGT\n@SP\nA=M\nM=0\n" +
-                   "(TST.2)\n@SP\nM=M+1\n"
-                   );
+    fn trans_push_asm_constant_test() {
+        let table = &[
+            (VMSeg::CONSTANT, 33),
+            (VMSeg::CONSTANT, 77),
+            (VMSeg::LOCAL, 0),
+            (VMSeg::ARGUMENT, 0),
+            (VMSeg::POINTER, 0),
+            (VMSeg::POINTER, 1),
+        ];
+
+        let mut tr = Translator::new("foo");
+        let mut code = String::new();
+        for (seg,n) in table {
+            code += &tr.trans_cmd(VMCommand::Push(*seg, *n));
+        }
+        let mut em = Emul::new();
+        em.set_ram(&[
+                   (0, 263),
+                   (1, 262),
+                   (2, 256),
+                   (3, -3),
+                   (4, -4),
+                   (256, 17),
+                   (262, 99),
+        ]);
+
+        em.run_code(&code, 50).unwrap();
+        assert_eq!(em.ram[0], 263+table.len() as i16, "SP wrong");
+        assert_eq!(em.ram[263], 33, "Wrong result from push constant 33");
+        assert_eq!(em.ram[264], 77, "Wrong result from push constant 77");
+        assert_eq!(em.ram[265], 99, "Wrong result from push local 0");
+        assert_eq!(em.ram[266], 17, "Wrong result from push argument 0");
+        assert_eq!(em.ram[267], -3, "Wrong result from push pointer 0");
+        assert_eq!(em.ram[268], -4, "Wrong result from push pointer 1");
     }
 
     #[test]
     fn trans_push_test() {
         let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::CONSTANT, 33)), 
-            "// push constant 33\n@33\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::LOCAL, 3)), 
-            "// push local 3\n@3\nD=A\n@LCL\nA=D+M\nD=M\n".to_owned() +
-                    "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
         assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::TEMP, 3)), 
             "// push temp 3\n@3\nD=A\n@5\nA=A+D\nD=M\n".to_owned() +
-                    "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::POINTER, 0)), 
-            "// push pointer 0\n@THIS\nD=M\n".to_owned() +
-                    "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::POINTER, 1)), 
-            "// push pointer 1\n@THAT\nD=M\n".to_owned() +
                     "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
         assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::STATIC, 9)), 
             "// push static 9\n@Splat.9\nD=M\n".to_owned() +

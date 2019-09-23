@@ -19,6 +19,12 @@ impl Emul {
         self.ram[self.a as usize]
     }
 
+    pub fn set_ram(&mut self, pairs: &[(usize,i16)]) {
+        for (k,v) in pairs {
+            self.ram[*k] = *v;
+        }
+    }
+
     fn do_comp(&self, comp: &Comp) -> i16 {
         match comp {
             Comp::Zero => 0,
@@ -57,15 +63,15 @@ impl Emul {
             if self.a < 0 {
                 panic!("Invalid address in A register: {}", self.a);
             }
-            println!("Setting M({}) to {}", self.a, res);
+            //println!("Setting M({}) to {}", self.a, res);
             self.ram[self.a as usize] = res;
         }
         if *dest == Dest::D || *dest == Dest::MD || *dest == Dest::AD || *dest == Dest::AMD {
-            println!("Setting D to {}", res);
+            //println!("Setting D to {}", res);
             self.d = res;
         }
         if *dest == Dest::A || *dest == Dest::AM || *dest == Dest::AD || *dest == Dest::AMD {
-            println!("Setting A to {}", res);
+            //println!("Setting A to {}", res);
             self.a = res;
         }
     }
@@ -92,7 +98,7 @@ impl Emul {
     pub fn run(&mut self, prog: Vec<Command>, maxticks: i32) {
         let mut n_ticks = 0i32;
         while self.pc < prog.len() && n_ticks < maxticks {
-            println!("Doing command: {:?}", prog[self.pc]);
+            //println!("Doing command: {:?}", prog[self.pc]);
             match &prog[self.pc] {
                 Command::A(n) => {
                     self.a = *n;
