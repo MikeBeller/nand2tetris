@@ -32,13 +32,13 @@ impl Translator {
                 writeln!(&mut r, "// {}", op.as_str()).unwrap();
                 match op {
                     VMOp::ADD =>
-                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n"),
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D+M\n"),
                     VMOp::SUB =>
                         r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M-D\n"),
                     VMOp::AND =>
-                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M&D\n"),
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D&M\n"),
                     VMOp::OR =>
-                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M|D\n"),
+                        r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D|M\n"),
                     VMOp::NEG =>
                         r.push_str("@SP\nA=M-1\nM=-M\n"),
                     VMOp::NOT =>
@@ -65,7 +65,7 @@ impl Translator {
                         writeln!(&mut r, "@{}\nD=A", num).unwrap();
                     },
                     VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT => {
-                        writeln!(&mut r, "@{}\nD=A\n@{}\nA=M+D\nD=M", num, seg.base_var_str()).unwrap();
+                        writeln!(&mut r, "@{}\nD=A\n@{}\nA=D+M\nD=M", num, seg.base_var_str()).unwrap();
                     },
                     VMSeg::TEMP => {
                         if num < 0 || num > 7 {
@@ -197,29 +197,38 @@ mod tests {
     use super::*;
     use crate::emul::Emul;
 
-    #[test]
+/*    #[test]
     fn trans_bin_test() {
         let mut tr = Translator::new("Splat");
         assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::ADD)), 
-            "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M+D\n");
+            "// add\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D+M\n");
         assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::SUB)), 
             "// sub\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M-D\n");
         assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::AND)), 
-            "// and\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M&D\n");
+            "// and\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D&M\n");
         assert_eq!(tr.trans_cmd(VMCommand::Arithmetic(VMOp::OR)), 
-            "// or\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=M|D\n");
-    }
+            "// or\n@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D|M\n");
+    } */
 
     #[test]
     fn trans_bin_asm_test() {
-        let mut tr = Translator::new("Splat");
-        let code = tr.trans_cmd(VMCommand::Arithmetic(VMOp::ADD));
-        let mut em = Emul::new();
-        em.ram[0] = 258;
-        em.ram[256] = 3; em.ram[257] = 7;
-        em.run_code(&code, 50).unwrap();
-        assert_eq!(em.ram[0], 257);
-        assert_eq!(em.ram[256], 10);
+        let table = vec![
+            ((3,7,VMOp::ADD), 10),
+            ((3,7,VMOp::SUB), -4),
+            ((3,7,VMOp::AND), 3),
+            ((3,7,VMOp::OR), 7),
+        ];
+
+        for ((a,b,op), expected) in table {
+            let mut tr = Translator::new("foo");
+            let code = tr.trans_cmd(VMCommand::Arithmetic(op));
+            let mut em = Emul::new();
+            em.ram[0] = 258;
+            em.ram[256] = a; em.ram[257] = b;
+            em.run_code(&code, 50).unwrap();
+            assert_eq!(em.ram[0], 257);
+            assert_eq!(em.ram[256], expected);
+        }
     }
 
     #[test]
@@ -255,7 +264,7 @@ mod tests {
         assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::CONSTANT, 33)), 
             "// push constant 33\n@33\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n");
         assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::LOCAL, 3)), 
-            "// push local 3\n@3\nD=A\n@LCL\nA=M+D\nD=M\n".to_owned() +
+            "// push local 3\n@3\nD=A\n@LCL\nA=D+M\nD=M\n".to_owned() +
                     "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
         assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::TEMP, 3)), 
             "// push temp 3\n@3\nD=A\n@5\nA=A+D\nD=M\n".to_owned() +
