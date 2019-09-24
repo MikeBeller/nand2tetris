@@ -377,6 +377,39 @@ mod tests {
     }
 
     #[test]
+    fn trans_call_test() {
+        /* Test a basic call with 2 arguments.  LCL, ARG, THIS, THAT are set
+         * to nonsense values just to check that they are stored properly.
+         * */
+        let mut tr = Translator::new("Foo");
+        let code = tr.trans_cmd(VMCommand::Call("BAR".to_string(), 2))
+            + &tr.trans_cmd(VMCommand::Label("BAR".to_string()));
+        let mut em = Emul::new();
+        em.set_ram(&[
+                   (0, 258),
+                   (1, -1),
+                   (2, -2),
+                   (3, -3),
+                   (4, -4),
+                   (256, 11),
+                   (257, 22),
+        ]);
+
+        em.run_code(&code, 100).unwrap();
+        assert_eq!(em.ram[0], 263, "SP wrong");
+        assert_eq!(em.ram[1], 263, "LCL wrong");
+        assert_eq!(em.ram[2], 256, "ARG wrong");
+        assert_eq!(em.ram[256], 11, "Argument 0 wrong");
+        assert_eq!(em.ram[257], 22, "Argument 1 wrong");
+        assert_eq!(em.ram[258], 47, "RA incorrect");
+        assert_eq!(em.ram[259], -1, "SavedLCL incorrect");
+        assert_eq!(em.ram[260], -2, "SavedARG incorrect");
+        assert_eq!(em.ram[261], -3, "SavedThis incorrect");
+        assert_eq!(em.ram[262], -4, "SavedThat incorrect");
+        //assert_eq!(em.ram[270], -6, "Wrong result from static 9");
+    }
+
+    #[test]
     fn trans_function_test() {
         //let mut tr = Translator::new("Splat");
         //println!("{}", tr.trans_cmd(VMCommand::Call("FOO".to_string(), 2)).replace("\n","\\n"));
