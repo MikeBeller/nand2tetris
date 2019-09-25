@@ -196,6 +196,7 @@ impl Translator {
 mod tests {
     use super::*;
     use crate::emul::Emul;
+    use crate::asm::Asm;
 
     #[test]
     fn trans_bin_asm_test() {
@@ -408,12 +409,80 @@ mod tests {
         assert_eq!(em.ram[262], -4, "SavedThat incorrect");
         //assert_eq!(em.ram[270], -6, "Wrong result from static 9");
     }
-
+    
     #[test]
     fn trans_function_test() {
-        //let mut tr = Translator::new("Splat");
-        //println!("{}", tr.trans_cmd(VMCommand::Call("FOO".to_string(), 2)).replace("\n","\\n"));
-        //println!("{}", tr.trans_cmd(VMCommand::Function("FOO".to_string(), 2)).replace("\n","\\n"));
-        //println!("{}", tr.trans_cmd(VMCommand::Return).replace("\n","\\n"));
+        /* Test a basic "function" with 2 arguments.  Assumes CALL FOO 2 has
+         * already been executed (the scenario from previous test).
+         * */
+        let mut tr = Translator::new("Foo");
+        let code = tr.trans_cmd(VMCommand::Function("BAR".to_string(), 2));
+        let mut em = Emul::new();
+        em.set_ram(&[
+                   (0, 263),
+                   (1, 263),
+                   (2, 256),
+                   (256, 11),
+                   (257, 22),
+                   (258, 47), // not right
+                   (259, -1),
+                   (260, -2),
+                   (261, -3),
+                   (262, -4),
+        ]);
+
+        em.run_code(&code, 100).unwrap();
+        assert_eq!(em.ram[0], 265, "SP wrong");
+        assert_eq!(em.ram[1], 263, "LCL wrong");
+        assert_eq!(em.ram[2], 256, "ARG wrong");
+        assert_eq!(em.ram[256], 11, "Argument 0 wrong");
+        assert_eq!(em.ram[257], 22, "Argument 1 wrong");
+        assert_eq!(em.ram[258], 47, "RA incorrect");
+        assert_eq!(em.ram[259], -1, "SavedLCL incorrect");
+        assert_eq!(em.ram[260], -2, "SavedARG incorrect");
+        assert_eq!(em.ram[261], -3, "SavedThis incorrect");
+        assert_eq!(em.ram[262], -4, "SavedThat incorrect");
+        assert_eq!(em.ram[263], 0, "SavedThat incorrect");
+        assert_eq!(em.ram[264], 0, "SavedThat incorrect");
+    }
+
+    #[test]
+    fn trans_return_test() {
+        /* Test a basic "function" with 2 arguments.  Assumes CALL FOO 2 has
+         * already been executed and then function FOO 2 has been executed.
+         * */
+        let mut tr = Translator::new("Foo");
+        let code = tr.trans_cmd(VMCommand::Return)
+            + &tr.trans_cmd(VMCommand::Label("RET1".to_string()));
+
+        let mut asm = Asm::new();
+        let cmds = asm.parse_code_str(&code).unwrap();
+
+        let mut em = Emul::new();
+        em.set_ram(&[
+                   (0, 266),
+                   (1, 263),
+                   (2, 256),
+                   (256, 11),
+                   (257, 22),
+                   (258, asm.get_sym("RET1")),
+                   (259, -1),
+                   (260, -2),
+                   (261, -3),
+                   (262, -4),
+                   (263, 0),
+                   (264, 0),
+                   (265, 99),
+        ]);
+
+
+        em.run(cmds, 100);
+        assert_eq!(em.ram[0], 257, "SP wrong");
+        assert_eq!(em.ram[1], -1, "LCL wrong");
+        assert_eq!(em.ram[2], -2, "ARG wrong");
+        assert_eq!(em.ram[3], -3, "THIS wrong");
+        assert_eq!(em.ram[4], -4, "THAT wrong");
+        assert_eq!(em.ram[256], 99, "Return val wrong");
     }
 }
+

@@ -248,8 +248,13 @@ impl Asm {
         asm.syms.insert("ARG".to_string(), 2);
         asm.syms.insert("THIS".to_string(), 3);
         asm.syms.insert("THAT".to_string(), 4);
+        asm.syms.insert("R14".to_string(), 14);
         asm.syms.insert("R15".to_string(), 15);
         asm
+    }
+
+    pub fn get_sym(self, s: &str) -> i16 {
+        *self.syms.get(s).unwrap()
     }
 
     pub fn parse_cmd(&self, st: &str) -> Result<Option<Command>,ParserError> {
