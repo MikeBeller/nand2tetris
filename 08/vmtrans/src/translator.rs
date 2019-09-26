@@ -485,14 +485,13 @@ mod tests {
         assert_eq!(em.ram[256], 99, "Return val wrong");
     }
 
-    /*
     #[test]
     fn trans_callret_test() {
         /* Test full round trip call/function/return with 2 arguments.
          * LCL, ARG, THIS, THAT are set to nonsense values just to check
          * that they are stored and restored properly.
          * */
-        let table = &[
+        let table = vec![
             VMCommand::Push(VMSeg::CONSTANT, 3),
             VMCommand::Push(VMSeg::CONSTANT, 7),
             VMCommand::Call("ADD".to_string(), 2),
@@ -530,7 +529,60 @@ mod tests {
         assert_eq!(em.ram[4], -4, "LCL wrong");
         assert_eq!(em.ram[256], 10, "Result wrong");
     }
-    */
+    
+    #[test]
+    fn trans_callcallretret_test() {
+        /* Test full round trip call/function/return with 2 arguments.
+         * LCL, ARG, THIS, THAT are set to nonsense values just to check
+         * that they are stored and restored properly.
+         * */
+        let table = vec![
+            VMCommand::Push(VMSeg::CONSTANT, 3),
+            VMCommand::Push(VMSeg::CONSTANT, 7),
+            VMCommand::Call("ADD".to_string(), 2),
+            VMCommand::Goto("END".to_string()),
+            VMCommand::Function("ADD".to_string(), 1),
+            VMCommand::Push(VMSeg::ARGUMENT, 0),
+            VMCommand::Push(VMSeg::ARGUMENT, 1),
+            VMCommand::Arithmetic(VMOp::ADD),
+            VMCommand::Pop(VMSeg::LOCAL, 0),
+            VMCommand::Push(VMSeg::LOCAL, 0),
+            VMCommand::Push(VMSeg::CONSTANT, 9),
+            VMCommand::Call("SUB".to_string(), 2),
+            VMCommand::Return,
+            VMCommand::Function("SUB".to_string(), 1),
+            VMCommand::Push(VMSeg::ARGUMENT, 0),
+            VMCommand::Push(VMSeg::ARGUMENT, 1),
+            VMCommand::Arithmetic(VMOp::SUB),
+            VMCommand::Pop(VMSeg::LOCAL, 0),
+            VMCommand::Push(VMSeg::LOCAL, 0),
+            VMCommand::Return,
+            VMCommand::Label("END".to_string()),
+        ];
+
+        let mut tr = Translator::new("Foo");
+        let mut code = String::new();
+        for cmd in table {
+            code += &tr.trans_cmd(cmd);
+        }
+
+        let mut em = Emul::new();
+        em.set_ram(&[
+                   (0, 256),
+                   (1, -1),
+                   (2, -2),
+                   (3, -3),
+                   (4, -4),
+        ]);
+
+        em.run_code(&code, 1000).unwrap();
+        assert_eq!(em.ram[0], 257, "SP wrong");
+        assert_eq!(em.ram[1], -1, "LCL wrong");
+        assert_eq!(em.ram[2], -2, "LCL wrong");
+        assert_eq!(em.ram[3], -3, "LCL wrong");
+        assert_eq!(em.ram[4], -4, "LCL wrong");
+        assert_eq!(em.ram[256], 1, "Result wrong");
+    }
     
 }
 
