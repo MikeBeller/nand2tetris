@@ -14,15 +14,14 @@ impl Translator {
     }
 
     pub fn gen_bootstrap() -> String {
-        //"@256\nD=A\n@SP\nM=D\n@Sys.init\n0;JMP\n".to_string() 
         let mut tr = Translator::new("bootstrap");
-        "@256\nD=A\n@SP\nM=D\n".to_string()  + 
+        "@256\nD=A\n@SP\nM=D\n".to_string() +
             &tr.trans_cmd(&VMCommand::Call("Sys.init".to_string(), 0))
     }
 
     fn get_return_address(&mut self) -> String {
         self.return_num += 1;
-        format!("RETURN.{}", self.return_num-1)
+        format!("RETURN.{}.{}", self.file_name, self.return_num-1)
     }
 
     pub fn trans_cmd(&mut self, cmd: &VMCommand) -> String {
