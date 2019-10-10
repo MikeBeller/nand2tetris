@@ -20,7 +20,7 @@ fn process_file(base: &str, inpath: &Path, mut outfile: &File) -> Result<(), std
         let line = some_line.unwrap();
         match parser.parse_str(&line) {
             Ok(Some(cmd)) => {
-                let asm = tr.trans_cmd(cmd);
+                let asm = tr.trans_cmd(&cmd);
                 write!(&mut outfile, "{}", asm).unwrap();
             },
             Ok(None) => {},  // comment or whitespace

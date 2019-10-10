@@ -17,7 +17,7 @@ impl Translator {
         //"@256\nD=A\n@SP\nM=D\n@Sys.init\n0;JMP\n".to_string() 
         let mut tr = Translator::new("bootstrap");
         "@256\nD=A\n@SP\nM=D\n".to_string()  + 
-            &tr.trans_cmd(VMCommand::Call("Sys.init".to_string(), 0))
+            &tr.trans_cmd(&VMCommand::Call("Sys.init".to_string(), 0))
     }
 
     fn get_return_address(&mut self) -> String {
@@ -25,12 +25,12 @@ impl Translator {
         format!("RETURN.{}", self.return_num-1)
     }
 
-    pub fn trans_cmd(&mut self, cmd: VMCommand) -> String {
+    pub fn trans_cmd(&mut self, cmd: &VMCommand) -> String {
         let mut r = String::new();
         match cmd {
             VMCommand::Arithmetic(op) => {
                 writeln!(&mut r, "// {}", op.as_str()).unwrap();
-                match op {
+                match *op {
                     VMOp::ADD =>
                         r.push_str("@SP\nAM=M-1\nD=M\n@SP\nA=M-1\nM=D+M\n"),
                     VMOp::SUB =>
@@ -46,9 +46,9 @@ impl Translator {
                     VMOp::EQ | VMOp::LT | VMOp::GT => {
                         r.push_str("@SP\nAM=M-1\nD=M\n@SP\nAM=M-1\nD=M-D\nM=-1\n");
                         write!(&mut r, "@TST.{}\n", self.label_num).unwrap();
-                        if op == VMOp::EQ {
+                        if *op == VMOp::EQ {
                             r.push_str("D;JEQ\n");
-                        } else if op == VMOp::LT {
+                        } else if *op == VMOp::LT {
                             r.push_str("D;JLT\n");
                         } else {
                             r.push_str("D;JGT\n");
@@ -60,63 +60,63 @@ impl Translator {
             },
             VMCommand::Push(seg, num) => {
                 writeln!(&mut r, "// push {} {}", seg.as_str(), num).unwrap();
-                match seg {
+                match *seg {
                     VMSeg::CONSTANT => {
-                        writeln!(&mut r, "@{}\nD=A", num).unwrap();
+                        writeln!(&mut r, "@{}\nD=A", *num).unwrap();
                     },
                     VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT => {
-                        writeln!(&mut r, "@{}\nD=A\n@{}\nA=D+M\nD=M", num, seg.base_var_str()).unwrap();
+                        writeln!(&mut r, "@{}\nD=A\n@{}\nA=D+M\nD=M", *num, seg.base_var_str()).unwrap();
                     },
                     VMSeg::TEMP => {
-                        if num < 0 || num > 7 {
-                            panic!("Invalid offset for temp segment: {}", num);
+                        if *num < 0 || *num > 7 {
+                            panic!("Invalid offset for temp segment: {}", *num);
                         }
-                        writeln!(&mut r, "@{}\nD=M", num+5).unwrap();
+                        writeln!(&mut r, "@{}\nD=M", *num+5).unwrap();
                     },
                     VMSeg::POINTER => {
-                        if num == 0 {
+                        if *num == 0 {
                             r.push_str("@THIS\nD=M\n");
-                        } else if num == 1 {
+                        } else if *num == 1 {
                             r.push_str("@THAT\nD=M\n");
                         } else {
-                            panic!("Invalid offset for pointer segment: {}", num);
+                            panic!("Invalid offset for pointer segment: {}", *num);
                         }
                     },
                     VMSeg::STATIC => {
-                        writeln!(&mut r, "@{}.{}\nD=M", self.file_name, num).unwrap();
+                        writeln!(&mut r, "@{}.{}\nD=M", self.file_name, *num).unwrap();
                     },
                 }
                 r.push_str("@SP\nA=M\nM=D\n@SP\nM=M+1\n");
             },
             VMCommand::Pop(seg, num) => {
-                writeln!(&mut r, "// pop {} {}", seg.as_str(), num).unwrap();
-                match seg {
+                writeln!(&mut r, "// pop {} {}", seg.as_str(), *num).unwrap();
+                match *seg {
                     VMSeg::CONSTANT => {
                         panic!("WTF?  Can't pop constant");
                     },
                     VMSeg::LOCAL | VMSeg::ARGUMENT | VMSeg::THIS | VMSeg::THAT => {
                         // R15 = <segment> + <num>
-                        writeln!(&mut r, "@{}\nD=M\n@{}\nD=D+A\n@R15\nM=D", seg.base_var_str(), num).unwrap();
+                        writeln!(&mut r, "@{}\nD=M\n@{}\nD=D+A\n@R15\nM=D", seg.base_var_str(), *num).unwrap();
                     },
                     VMSeg::TEMP => {
-                        if num < 0 || num > 7 {
-                            panic!("Invalid offset for temp segment: {}", num);
+                        if *num < 0 || *num > 7 {
+                            panic!("Invalid offset for temp segment: {}", *num);
                         }
-                        writeln!(&mut r, "@{}\nD=A\n@{}\nD=D+A\n@R15\nM=D", seg.base_var_str(), num).unwrap();
+                        writeln!(&mut r, "@{}\nD=A\n@{}\nD=D+A\n@R15\nM=D", seg.base_var_str(), *num).unwrap();
                     },
                     VMSeg::POINTER => {
                         // could be optimized to avoid use of R15
-                        if num == 0 {
+                        if *num == 0 {
                             r.push_str("@THIS\nD=A\n@R15\nM=D\n");
-                        } else if num == 1 {
+                        } else if *num == 1 {
                             r.push_str("@THAT\nD=A\n@R15\nM=D\n");
                         } else {
-                            panic!("Invalid offset for temp segment: {}", num);
+                            panic!("Invalid offset for temp segment: {}", *num);
                         }
                     },
                     VMSeg::STATIC => {
                         // could be optimized to avoid use of R15
-                        writeln!(&mut r, "@{}.{}\nD=A\n@R15\nM=D", self.file_name, num).unwrap();
+                        writeln!(&mut r, "@{}.{}\nD=A\n@R15\nM=D", self.file_name, *num).unwrap();
                     },
                 }
                 // D = *SP++
@@ -160,7 +160,7 @@ impl Translator {
                 writeln!(&mut r, "({})", label_str).unwrap();
                 // Zero out the locals
                 writeln!(&mut r, "@SP\nA=M").unwrap();
-                for _i in 0..n_locals {
+                for _i in 0..*n_locals {
                     writeln!(&mut r, "M=0\nA=A+1").unwrap();
                 }
                 writeln!(&mut r, "D=A\n@SP\nM=D").unwrap();
@@ -214,7 +214,7 @@ mod tests {
 
         for ((a,b,op), expected) in table {
             let mut tr = Translator::new("foo");
-            let code = tr.trans_cmd(VMCommand::Arithmetic(op));
+            let code = tr.trans_cmd(&VMCommand::Arithmetic(op));
             let mut em = Emul::new();
             em.set_ram(&[(0,258), (256, a), (257, b)]);
             em.run_code(&code, 50).unwrap();
@@ -232,7 +232,7 @@ mod tests {
 
         for ((a,op), expected) in table {
             let mut tr = Translator::new("foo");
-            let code = tr.trans_cmd(VMCommand::Arithmetic(op));
+            let code = tr.trans_cmd(&VMCommand::Arithmetic(op));
             let mut em = Emul::new();
             em.set_ram(&[(0,257), (256, a)]);
             em.run_code(&code, 50).unwrap();
@@ -267,7 +267,7 @@ mod tests {
         let mut tr = Translator::new("Foo");
         let mut code = String::new();
         for (seg,n) in table {
-            code += &tr.trans_cmd(VMCommand::Push(*seg, *n));
+            code += &tr.trans_cmd(&VMCommand::Push(*seg, *n));
         }
         let mut em = Emul::new();
         em.set_ram(&[
@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn trans_push_test() {
         let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Push(VMSeg::STATIC, 9)), 
+        assert_eq!(tr.trans_cmd(&VMCommand::Push(VMSeg::STATIC, 9)), 
             "// push static 9\n@Splat.9\nD=M\n".to_owned() +
                     "@SP\nA=M\nM=D\n@SP\nM=M+1\n");
     }
@@ -330,7 +330,7 @@ mod tests {
         let mut tr = Translator::new("Foo");
         let mut code = String::new();
         for (seg,n) in table {
-            code += &tr.trans_cmd(VMCommand::Pop(*seg, *n));
+            code += &tr.trans_cmd(&VMCommand::Pop(*seg, *n));
         }
         let mut em = Emul::new();
         // everything in RAM is preset to zero
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn trans_pop_test() {
         let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Pop(VMSeg::STATIC, 9)),
+        assert_eq!(tr.trans_cmd(&VMCommand::Pop(VMSeg::STATIC, 9)),
             "// pop static 9\n@Splat.9\nD=A\n@R15\nM=D\n".to_owned() + 
             "@SP\nAM=M-1\nD=M\n" + 
             "@R15\nA=M\nM=D\n");
@@ -372,9 +372,9 @@ mod tests {
     #[test]
     fn trans_goto_test() {
         let mut tr = Translator::new("Splat");
-        assert_eq!(tr.trans_cmd(VMCommand::Label("foo".to_string())), "// label foo\n(foo)\n");
-        assert_eq!(tr.trans_cmd(VMCommand::Goto("foo".to_string())), "// goto foo\n@foo\n0;JMP\n");
-        assert_eq!(tr.trans_cmd(VMCommand::IfGoto("foo".to_string())), "// if-goto foo\n@SP\nAM=M-1\nD=M\n@foo\nD;JNE\n");
+        assert_eq!(tr.trans_cmd(&VMCommand::Label("foo".to_string())), "// label foo\n(foo)\n");
+        assert_eq!(tr.trans_cmd(&VMCommand::Goto("foo".to_string())), "// goto foo\n@foo\n0;JMP\n");
+        assert_eq!(tr.trans_cmd(&VMCommand::IfGoto("foo".to_string())), "// if-goto foo\n@SP\nAM=M-1\nD=M\n@foo\nD;JNE\n");
     }
 
     #[test]
@@ -383,8 +383,8 @@ mod tests {
          * to nonsense values just to check that they are stored properly.
          * */
         let mut tr = Translator::new("Foo");
-        let code = tr.trans_cmd(VMCommand::Call("BAR".to_string(), 2))
-            + &tr.trans_cmd(VMCommand::Label("BAR".to_string()));
+        let code = tr.trans_cmd(&VMCommand::Call("BAR".to_string(), 2))
+            + &tr.trans_cmd(&VMCommand::Label("BAR".to_string()));
         let mut em = Emul::new();
         em.set_ram(&[
                    (0, 258),
@@ -416,7 +416,7 @@ mod tests {
          * already been executed (the scenario from previous test).
          * */
         let mut tr = Translator::new("Foo");
-        let code = tr.trans_cmd(VMCommand::Function("BAR".to_string(), 2));
+        let code = tr.trans_cmd(&VMCommand::Function("BAR".to_string(), 2));
         let mut em = Emul::new();
         em.set_ram(&[
                    (0, 263),
@@ -452,8 +452,8 @@ mod tests {
          * already been executed and then function FOO 2 has been executed.
          * */
         let mut tr = Translator::new("Foo");
-        let code = tr.trans_cmd(VMCommand::Return)
-            + &tr.trans_cmd(VMCommand::Label("RET1".to_string()));
+        let code = tr.trans_cmd(&VMCommand::Return)
+            + &tr.trans_cmd(&VMCommand::Label("RET1".to_string()));
 
         let mut asm = Asm::new();
         let cmds = asm.parse_code_str(&code).unwrap();
@@ -508,9 +508,10 @@ mod tests {
 
         let mut tr = Translator::new("Foo");
         let mut code = String::new();
-        for cmd in table {
+        for cmd in &table {
             code += &tr.trans_cmd(cmd);
         }
+        println!("{:?}", table);
 
         let mut em = Emul::new();
         em.set_ram(&[
@@ -562,7 +563,7 @@ mod tests {
 
         let mut tr = Translator::new("Foo");
         let mut code = String::new();
-        for cmd in table {
+        for cmd in &table {
             code += &tr.trans_cmd(cmd);
         }
 
