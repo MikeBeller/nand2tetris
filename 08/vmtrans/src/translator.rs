@@ -442,8 +442,8 @@ mod tests {
         assert_eq!(em.ram[260], -2, "SavedARG incorrect");
         assert_eq!(em.ram[261], -3, "SavedThis incorrect");
         assert_eq!(em.ram[262], -4, "SavedThat incorrect");
-        assert_eq!(em.ram[263], 0, "SavedThat incorrect");
-        assert_eq!(em.ram[264], 0, "SavedThat incorrect");
+        assert_eq!(em.ram[263], 0, "Arg0 incorrect");
+        assert_eq!(em.ram[264], 0, "Arg1 incorrect");
     }
 
     #[test]
