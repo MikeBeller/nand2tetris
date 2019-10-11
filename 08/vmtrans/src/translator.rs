@@ -137,6 +137,12 @@ impl Translator {
             },
             VMCommand::Call(label_str, n_args) => {
                 writeln!(&mut r, "// call {} {}", label_str, n_args).unwrap();
+                let mut narg = *n_args;
+                if narg == 0 {
+                    // push room for a return value
+                    writeln!(&mut r, "@SP\nA=M\nM=0\n@SP\nM=M+1").unwrap();
+                    narg = 1;
+                }
                 // push return address
                 let return_label = self.get_return_address();
                 writeln!(&mut r, "@{}\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1", return_label).unwrap();
@@ -146,7 +152,7 @@ impl Translator {
                 writeln!(&mut r, "@THIS\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 writeln!(&mut r, "@THAT\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 // compute and store new ARG
-                writeln!(&mut r, "@SP\nD=M\n@{}\nD=D-A\n@ARG\nM=D", n_args+5).unwrap();
+                writeln!(&mut r, "@SP\nD=M\n@{}\nD=D-A\n@ARG\nM=D", narg+5).unwrap();
                 // LCL = current SP
                 writeln!(&mut r, "@SP\nD=M\n@LCL\nM=D").unwrap();
                 // jump to the function, and write the return label
