@@ -137,12 +137,13 @@ impl Translator {
             },
             VMCommand::Call(label_str, n_args) => {
                 writeln!(&mut r, "// call {} {}", label_str, n_args).unwrap();
+                /*
                 let mut narg = *n_args;
                 if narg == 0 {
                     // push room for a return value
                     writeln!(&mut r, "@SP\nA=M\nM=0\n@SP\nM=M+1").unwrap();
                     narg = 1;
-                }
+                } */
                 // push return address
                 let return_label = self.get_return_address();
                 writeln!(&mut r, "@{}\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1", return_label).unwrap();
@@ -152,7 +153,7 @@ impl Translator {
                 writeln!(&mut r, "@THIS\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 writeln!(&mut r, "@THAT\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 // compute and store new ARG
-                writeln!(&mut r, "@SP\nD=M\n@{}\nD=D-A\n@ARG\nM=D", narg+5).unwrap();
+                writeln!(&mut r, "@SP\nD=M\n@{}\nD=D-A\n@ARG\nM=D", n_args+5).unwrap();
                 // LCL = current SP
                 writeln!(&mut r, "@SP\nD=M\n@LCL\nM=D").unwrap();
                 // jump to the function, and write the return label
@@ -172,8 +173,8 @@ impl Translator {
             },
             VMCommand::Return => {
                 writeln!(&mut r, "// return").unwrap();
-                // Copy return value onto argument 0
-                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@ARG\nA=M\nM=D").unwrap();
+                // Save return value in R13
+                writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@R13\nM=D").unwrap();
                 // Save ARG in R15
                 writeln!(&mut r, "@ARG\nD=M\n@R15\nM=D").unwrap();
                 // Restore THAT, THIS, ARG, LCL
@@ -185,8 +186,10 @@ impl Translator {
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@LCL\nM=D").unwrap();
                 // Save return address in R14
                 writeln!(&mut r, "@SP\nAM=M-1\nD=M\n@R14\nM=D").unwrap();
-                // SP = R15 + 1
-                writeln!(&mut r, "@R15\nD=M\n@SP\nM=D+1").unwrap();
+                // SP = R15.  
+                writeln!(&mut r, "@R15\nD=M\n@SP\nM=D").unwrap();
+                // Push value of R13 (return value)
+                writeln!(&mut r, "@R13\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1").unwrap();
                 // Jump to return address
                 writeln!(&mut r, "@R14\nA=M\n0;JMP").unwrap();
             },
@@ -194,7 +197,6 @@ impl Translator {
         r
     }
 }
-
 
 
 #[cfg(test)]
@@ -590,5 +592,36 @@ mod tests {
         assert_eq!(em.ram[256], 1, "Result wrong");
     }
     
+    #[test]
+    fn trans_zeroargs_test() {
+        /* Test round trip with zero args.  Special case because
+         * caller has to set aside a spot for the return value
+         * (since there is no argument 0).
+         * */
+        let table = vec![
+            VMCommand::Call("NOTHING".to_string(), 0),
+            VMCommand::Goto("END".to_string()),
+            VMCommand::Function("NOTHING".to_string(), 1),
+            VMCommand::Push(VMSeg::CONSTANT, 77),
+            VMCommand::Return,
+            VMCommand::Label("END".to_string()),
+        ];
+
+        let mut tr = Translator::new("Foo");
+        let mut code = String::new();
+        for cmd in &table {
+            code += &tr.trans_cmd(cmd);
+        }
+        println!("{:?}", table);
+
+        let mut em = Emul::new();
+        em.set_ram(&[
+                   (0, 256),
+        ]);
+
+        em.run_code(&code, 1000).unwrap();
+        assert_eq!(em.ram[0], 257, "SP wrong");
+        assert_eq!(em.ram[256], 77, "Result wrong");
+    }
 }
 

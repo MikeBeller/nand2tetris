@@ -248,6 +248,7 @@ impl Asm {
         asm.syms.insert("ARG".to_string(), 2);
         asm.syms.insert("THIS".to_string(), 3);
         asm.syms.insert("THAT".to_string(), 4);
+        asm.syms.insert("R13".to_string(), 13);
         asm.syms.insert("R14".to_string(), 14);
         asm.syms.insert("R15".to_string(), 15);
         asm
