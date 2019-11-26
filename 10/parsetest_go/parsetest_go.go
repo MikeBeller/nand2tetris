@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -15,7 +16,7 @@ type Token interface {
 type Symbol struct{ c rune }
 type Keyword struct{ s string }
 type Identifier struct{ s string }
-type IntConst struct{ i int16 }
+type IntConst struct{ i uint16 }
 type StringConst struct{ s string }
 
 func (*Symbol) token()      {}
@@ -24,7 +25,7 @@ func (*Identifier) token()  {}
 func (*IntConst) token()    {}
 func (*StringConst) token() {}
 
-func (s *Symbol) String() string      { return fmt.Sprintf("SYM(%c)", s.c) }
+func (s *Symbol) String() string      { return fmt.Sprintf("SYM('%c')", s.c) }
 func (s *Keyword) String() string     { return fmt.Sprintf("Keyword(%s)", s.s) }
 func (s *Identifier) String() string  { return fmt.Sprintf("ID(%s)", s.s) }
 func (s *IntConst) String() string    { return fmt.Sprintf("INT(%d)", s.i) }
@@ -66,13 +67,68 @@ func isSymbol(r rune) bool {
 	return !isIdent(r)
 }
 
+func getWord(rdr io.RuneScanner) string {
+	var w strings.Builder
+	for {
+		r, _, err := rdr.ReadRune()
+		if err != nil {
+			break
+		}
+		if isSymbol(r) || unicode.IsSpace(r) {
+			rdr.UnreadRune()
+			break
+		}
+		w.WriteRune(r)
+	}
+	return w.String()
+}
+
+func getInt(rdr io.RuneScanner) uint16 {
+	w := getWord(rdr)
+	i, err := strconv.Atoi(w)
+	if err != nil {
+		panic("ATOI " + w)
+	}
+	return uint16(i)
+}
+
+func getStringConst(rdr io.RuneScanner) string {
+	var w strings.Builder
+	for {
+		r, _, err := rdr.ReadRune()
+		if err != nil {
+			break
+		}
+		if r == '"' {
+			break
+		}
+		w.WriteRune(r)
+	}
+	return w.String()
+}
+
 func getToken(rdr io.RuneScanner) Token {
 	skipWhitespace(rdr)
-	_, _, err := rdr.ReadRune()
+	r, _, err := rdr.ReadRune()
 	if err != nil {
 		return nil
+	}
+	if r == '"' {
+		return &StringConst{getStringConst(rdr)}
+	} else if isSymbol(r) {
+		return &Symbol{r}
 	} else {
-		return &Keyword{"if"}
+		rdr.UnreadRune()
+		if unicode.IsDigit(r) {
+			return &IntConst{getInt(rdr)}
+		} else {
+			w := getWord(rdr)
+			if isKeyword(w) {
+				return &Keyword{w}
+			} else {
+				return &Identifier{w}
+			}
+		}
 	}
 }
 
@@ -81,11 +137,9 @@ func main() {
 	rdr := strings.NewReader(st)
 	for {
 		t := getToken(rdr)
-		fmt.Println(t)
 		if t == nil {
 			break
 		}
+		fmt.Println(t)
 	}
-
-	fmt.Println("vim-go")
 }
